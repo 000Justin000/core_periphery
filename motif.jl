@@ -4,7 +4,7 @@ using LightGraphs;
 using GraphPlot;
 using Colors;
 using Compose;
-using Plots; gr()
+using Plots; gr();
 
 function combinatorial_Laplacian(A)
     if (!issymmetric(A))
@@ -15,7 +15,7 @@ function combinatorial_Laplacian(A)
 
     D = spdiagm(vec(sum(A,1)));
 
-    return D - A
+    return D - A;
 end
 
 
@@ -44,7 +44,7 @@ function random_walk_Laplacian(A)
         end
     end
 
-    return P
+    return P;
 end
 
 
@@ -68,7 +68,7 @@ function random_core_peri(n, cratio, pcc, pcp, ppp)
         end
     end
 
-    return A + A'
+    return A + A';
 end
 
 
@@ -94,7 +94,58 @@ function random_core_peri_di(n, cratio, pcc, pcp, ppp)
         end
     end
 
-    return A
+    return A;
+end
+
+function distance_matrix(x,y)
+    n = length(x);
+    D = spzeros(n, n);
+
+    for i in 1:n
+        for j in 1:n
+            if (i != j)
+                D[i,j] = sqrt((x[j]-x[i])^2 + (y[j]-y[i])^2);
+            end
+        end
+    end
+
+    @assert issymmetric(D);
+
+    return D;
+end
+
+function probability_matrix(C,D)
+    @assert issymmetric(D);
+
+    rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D);
+    rho = rho - spdiagm(diag(rho));
+
+    @assert issymmetric(rho);
+
+    return rho;
+end
+
+function model_fit(A,D)
+    @assert issymmetric(A);
+    @assert issymmetric(D);
+
+    n = size(A,1);
+    C = zeros(n);
+    
+    converged = false;
+    while(!converged)
+        C0 = copy(C);
+
+        G = vec(sum(A-probability_matrix(C,D), 2));
+        C = C + 0.001 * G;
+        println(C[1:5])
+
+        if (norm(C-C0)/norm(C) < 1.0e-6)
+            converged = true;
+        end
+    end
+
+    return C
 end
 
 # data = matread("data/foodweb.mat");
