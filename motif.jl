@@ -36,6 +36,7 @@ function random_walk_Laplacian(A)
     for i in 1:n
         @assert d[i] >= 0;
 
+        # P is a row stochastic matrix
         if (d[i] > 0)
             P[i,:] = P[i,:] ./ d[i];
         elseif (d[i] == 0)
@@ -96,13 +97,18 @@ function random_core_peri_di(n, cratio, pcc, pcp, ppp)
     return A
 end
 
+# data = matread("data/foodweb.mat");
 
-data = matread("data/foodweb.mat");
+data = matread("data/reachability.mat");
+od = sortperm(vec(data["populations"]), rev=true);
 
-# spones Create a sparse matrix with the same structure as that of "S", 
-# but with every nonzero element having the value "1.0".
+data["A"]           = data["A"][od,od]
+data["labels"]      = data["labels"][od]
+data["latitude"]    = data["latitude"][od]
+data["longitude"]   = data["longitude"][od]
+data["populations"] = data["populations"][od]
+
 A = spones(data["A"]);
-# A = random_core_peri(128, 0.5, 0.8, 0.8, 0.3)
 G = DiGraph(A);
 
 # bidirectional edges
@@ -123,21 +129,30 @@ T3 = (U  * U') .* U;
 W1 = T1 + T2 + T3;
 W1 = W1 + W1';
 
+# ----- 2 hop -----
+W2 = B*B - spdiagm(diag(B*B));
+
 # ---------------------------------------------------------
-EL0 = eigs(random_walk_Laplacian(W0); nev=2, which=:LR)
-ES0 = eigs(random_walk_Laplacian(W0); nev=1, which=:SR)
-EL1 = eigs(random_walk_Laplacian(W1); nev=2, which=:LR)
-ES1 = eigs(random_walk_Laplacian(W1); nev=1, which=:SR)
+EL0 = eigs(random_walk_Laplacian(W0)+2*speye(W0); nev=2, which=:LR)
+ES0 = eigs(random_walk_Laplacian(W0)+2*speye(W0); nev=1, which=:SR)
+EL1 = eigs(random_walk_Laplacian(W1)+2*speye(W1); nev=2, which=:LR)
+ES1 = eigs(random_walk_Laplacian(W1)+2*speye(W1); nev=1, which=:SR)
+EL2 = eigs(random_walk_Laplacian(W2)+2*speye(W2); nev=2, which=:LR)
+ES2 = eigs(random_walk_Laplacian(W2)+2*speye(W2); nev=1, which=:SR)
 # ---------------------------------------------------------
 
 SC0 = sweepcut(W0, real(ES0[2][:,end]));
 SC1 = sweepcut(W1, real(ES1[2][:,end]));
+SC2 = sweepcut(W2, real(EL2[2][:,end]));
 
 S0 = bestset(SC0);
 S1 = bestset(SC1);
+S2 = bestset(SC2);
 
 C0 = [(i in S0 ? colorant"lightseagreen" : colorant"orange") for i in 1:nv(G)];
 C1 = [(i in S1 ? colorant"lightseagreen" : colorant"orange") for i in 1:nv(G)];
+C2 = [(i in S2 ? colorant"lightseagreen" : colorant"orange") for i in 1:nv(G)];
 
 draw(PDF("C0.pdf", 16cm, 16cm), gplot(G, nodefillc=C0));
 draw(PDF("C1.pdf", 16cm, 16cm), gplot(G, nodefillc=C1));
+draw(PDF("C2.pdf", 16cm, 16cm), gplot(G, nodefillc=C2));
