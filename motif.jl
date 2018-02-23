@@ -104,7 +104,8 @@ function distance_matrix(x,y)
     for i in 1:n
         for j in 1:n
             if (i != j)
-                D[i,j] = sqrt((x[j]-x[i])^2 + (y[j]-y[i])^2);
+#               D[i,j] = ((x[j]-x[i])^2.0 + (y[j]-y[i])^2.0)^0.5;
+                D[i,j] = ((x[j]-x[i])^2.0 + (y[j]-y[i])^2.0)^0.5;
             end
         end
     end
