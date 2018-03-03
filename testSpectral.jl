@@ -8,7 +8,7 @@ using Plots; gr();
 using Spectral;
 using Motif;
 
-data = MAT.matread("data/reachability.mat");
+data = MAT.matread("data/benson/reachability.mat");
 
 od = sortperm(vec(data["populations"]), rev=true);
 data["A"]           = data["A"][od,od]

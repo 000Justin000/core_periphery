@@ -1,6 +1,6 @@
 #---------------------------------------------------------------------------------
 module NetworkGen
-    export cc_cp_pp, di_cc_cp_pp
+    export n_r_cc_cp_pp, di_n_r_cc_cp_pp
 
     #-----------------------------------------------------------------------------
     # generate a random undirected network
@@ -12,7 +12,7 @@ module NetworkGen
     # ppp        - probability of periphery-periphery linkage
     # rand_order - if true, then core nodes and periphery nodes are mixed
     #-----------------------------------------------------------------------------
-    function cc_cp_pp(n, cratio, pcc, pcp, ppp, rand_order=false)
+    function n_r_cc_cp_pp(n, cratio, pcc, pcp, ppp, rand_order=false)
         if (rand_order)
             vertices = randperm(n);
         else
@@ -41,7 +41,7 @@ module NetworkGen
     #-----------------------------------------------------------------------------
     
     #-----------------------------------------------------------------------------
-    # generate a random undirected network
+    # generate a random directed network
     #-----------------------------------------------------------------------------
     # n          - number of nodes
     # cratio     - ratio of core nodes
@@ -50,7 +50,7 @@ module NetworkGen
     # ppp        - probability of periphery-periphery linkage
     # rand_order - if true, then core nodes and periphery nodes are mixed
     #-----------------------------------------------------------------------------
-    function di_cc_cp_pp(n, cratio, pcc, pcp, ppp, rand_order=false)
+    function di_n_r_cc_cp_pp(n, cratio, pcc, pcp, ppp, rand_order=false)
         if (rand_order)
             vertices = randperm(n);
         else
@@ -76,6 +76,28 @@ module NetworkGen
             end
         end
     
+        return A;
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    # generate a lattice network
+    #-----------------------------------------------------------------------------
+    function periodic_lattice(n, m)
+        A = spzeros(n*m,n*m);
+
+        pp(itr,len) = Int((itr-1) .- floor.((itr-1)./len) .* len + 1);
+
+        for i in 1:n
+            for j in 1:m
+                A[(pp(i,n)-1)*n + (pp(j,m)-1) + 1, (pp(i-1,n)-1)*n + (pp(j,  m)-1) + 1] = 1;
+                A[(pp(i,n)-1)*n + (pp(j,m)-1) + 1, (pp(i+1,n)-1)*n + (pp(j,  m)-1) + 1] = 1;
+                A[(pp(i,n)-1)*n + (pp(j,m)-1) + 1, (pp(i,  n)-1)*n + (pp(j-1,m)-1) + 1] = 1;
+                A[(pp(i,n)-1)*n + (pp(j,m)-1) + 1, (pp(i,  n)-1)*n + (pp(j+1,m)-1) + 1] = 1;
+            end
+        end
+
+        @assert issymmetric(A);
         return A;
     end
     #-----------------------------------------------------------------------------

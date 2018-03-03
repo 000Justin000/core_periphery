@@ -1,48 +1,105 @@
-using MatrixNetworks;
 using MAT;
-using LightGraphs;
-using GraphPlot;
-using Colors;
-using Compose;
-using Plots; gr();
-using Spectral;
+using NetworkGen;
+using StochasticCP;
 using Motif;
+using Plots; gr();
 
-data = MAT.matread("data/reachability.mat");
+#----------------------------------------------------------------
+function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
+    crs = [];
+    for k in klist
+        #--------------------------------------------------------
+        # A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
+        #--------------------------------------------------------
+        cr = 0;
+        #--------------------------------------------------------
+        for itr in 1:repeat
+            A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
+            C   = StochasticCP.model_fit(A);
+            od  = sortperm(C, rev=true);
+            cr += (1/repeat) * sum([i<=n*cratio ? 1 : 0 for i in od[1:Int(n*cratio)]])/(n*cratio);
+        end
+        #--------------------------------------------------------
+        push!(crs, cr);
+        #--------------------------------------------------------
+    end
+    plot(klist, crs);
+end
+#----------------------------------------------------------------
 
-od = sortperm(vec(data["populations"]), rev=true);
-data["A"]           = data["A"][od,od]
-data["labels"]      = data["labels"][od]
-data["latitude"]    = data["latitude"][od]
-data["longitude"]   = data["longitude"][od]
-data["populations"] = data["populations"][od]
+#----------------------------------------------------------------
+function test_lattice(n)
+    A = NetworkGen.periodic_lattice(n,n);
+    C = StochasticCP.model_fit(A);
 
-A = spones(data["A"]);
-W0 = Motif.Me1(A);
-W1 = Motif.M05(A);
-W2 = Motif.M13(A);
+    plot(C);
+end
+#----------------------------------------------------------------
 
-# ---------------------------------------------------------
-EL0 = eigs(Spectral.random_walk_Laplacian(W0)+2*speye(W0); nev=2, which=:LR)
-ES0 = eigs(Spectral.random_walk_Laplacian(W0)+2*speye(W0); nev=1, which=:SR)
-EL1 = eigs(Spectral.random_walk_Laplacian(W1)+2*speye(W1); nev=2, which=:LR)
-ES1 = eigs(Spectral.random_walk_Laplacian(W1)+2*speye(W1); nev=1, which=:SR)
-EL2 = eigs(Spectral.random_walk_Laplacian(W2)+2*speye(W2); nev=2, which=:LR)
-ES2 = eigs(Spectral.random_walk_Laplacian(W2)+2*speye(W2); nev=1, which=:SR)
-# ---------------------------------------------------------
+#----------------------------------------------------------------
+function test_reachability()
+    data = MAT.matread("data/benson/reachability.mat");
+    
+    od = sortperm(vec(data["populations"]), rev=true);
+    data["A"]           = data["A"][od,od]
+    data["labels"]      = data["labels"][od]
+    data["latitude"]    = data["latitude"][od]
+    data["longitude"]   = data["longitude"][od]
+    data["populations"] = data["populations"][od]
 
-SC0 = MatrixNetworks.sweepcut(W0, real(ES0[2][:,end]));
-SC1 = MatrixNetworks.sweepcut(W1, real(ES1[2][:,end]));
-SC2 = MatrixNetworks.sweepcut(W2, real(EL2[2][:,end]));
+    A  = spones(data["A"]);
+    W0 = Motif.Me1(A);
+    C  = StochasticCP.model_fit(W0);
+    W1 = StochasticCP.model_gen(C);
 
-S0 = MatrixNetworks.bestset(SC0);
-S1 = MatrixNetworks.bestset(SC1);
-S2 = MatrixNetworks.bestset(SC2);
+    plot(C);
 
-G = LightGraphs.DiGraph(A);
-C0 = [(i in S0 ? colorant"lightseagreen" : colorant"orange") for i in 1:nv(G)];
-C1 = [(i in S1 ? colorant"lightseagreen" : colorant"orange") for i in 1:nv(G)];
-C2 = [(i in S2 ? colorant"lightseagreen" : colorant"orange") for i in 1:nv(G)];
-Compose.draw(PDF("C0.pdf", 16cm, 16cm), gplot(G, nodefillc=C0));
-Compose.draw(PDF("C1.pdf", 16cm, 16cm), gplot(G, nodefillc=C1));
-Compose.draw(PDF("C2.pdf", 16cm, 16cm), gplot(G, nodefillc=C2));
+    return W0, W1, data;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function distance_matrix(coord)
+    n = size(coord,1);
+    D = spzeons(n,n);
+
+    for i in 1:n
+        for j in i+1:n
+            lat1 = coord[i][1]/180 * pi;
+            lat2 = coord[j][1]/180 * pi;
+            lon1 = coord[i][2]/180 * pi;
+            lon2 = coord[j][2]/180 * pi;
+
+            dlat = lat2-lat1;
+            dlon = lon2-lon1;
+
+            haversine = sin(dlat/2)^2 + cos(lat1)*cos(lat2)*sin(dlon/2)^2;
+            D[i,j] = 6371e3 * (2 * atan2(sqrt(haversine), sqrt(1-haversine)));
+        end
+    end
+
+    D = D + D';
+
+    @assert issymmetric(D);
+
+    return D;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function test_underground()
+    data = MAT.matread("data/london_underground/London_Underground.mat");
+
+    A = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
+    A = spones(A);
+
+    D = distance_matrix(data["Tube_Locations"])
+
+    C = StochasticCP.model_fit(A);
+    B = StochasticCP.model_gen(C);
+
+    plot(C);
+
+    return A, B, data;
+end
+#----------------------------------------------------------------
