@@ -24,7 +24,7 @@ if __name__ == "__main__":
     headers = {'User-Agent' : "Chrome 64.0.3282.186"}
     
     coords = [];
-    f = open("station_names");
+    f = open("station.names");
     for line in f.readlines():
         try:
             req = urllib.request.Request(url + process_name(line, "_tube_station", True), headers=headers)
@@ -65,4 +65,4 @@ if __name__ == "__main__":
             else:
                 raise Exception("inconsistent coordinates found for " + line + str(coord))
 
-    np.savetxt("station_coordinates", np.array(coords))
+    np.savetxt("station.coords", np.array(coords))
