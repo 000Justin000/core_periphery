@@ -53,8 +53,8 @@ module StochasticCP
         A = spones(A);
 
         n = size(A,1);
-        # C = zeros(n);
-        C = rand(n);
+        C = zeros(n);
+        # C = rand(n);
         
         converged = false;
         while(!converged)
