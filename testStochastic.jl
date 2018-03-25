@@ -1,10 +1,13 @@
+using StatsBase;
 using MAT;
 using NetworkGen;
 using StochasticCP;
 using Motif;
 using Colors;
-using NearestNeighbors
-using Plots; gr();
+using NearestNeighbors;
+using Distances;
+using Plots; pyplot();
+using LaTeXStrings;
 
 #----------------------------------------------------------------
 function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
@@ -17,7 +20,7 @@ function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
         #--------------------------------------------------------
         for itr in 1:repeat
             A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
-            C   = StochasticCP.model_fit(A);
+            C   = model_fit(A);
             od  = sortperm(C, rev=true);
             cr += (1/repeat) * sum([i<=n*cratio ? 1 : 0 for i in od[1:Int(n*cratio)]])/(n*cratio);
         end
@@ -32,7 +35,7 @@ end
 #----------------------------------------------------------------
 function test_lattice(n)
     A = NetworkGen.periodic_lattice(n,n);
-    C = StochasticCP.model_fit(A);
+    C = model_fit(A);
 
     plot(C);
 end
@@ -51,8 +54,8 @@ function test_reachability()
 
     A  = spones(data["A"]);
     W0 = Motif.Me1(A);
-    C  = StochasticCP.model_fit(W0);
-    W1 = StochasticCP.model_gen(C);
+    C  = model_fit(W0);
+    W1 = model_gen(C);
 
     plot(C);
 
@@ -83,9 +86,9 @@ function distance_matrix(coords)
     D = spzeros(n,n);
 
     for i in 1:n
-        println(i);
         for j in i+1:n
-            D[i,j] = dist_earth(coords[i], coords[j]);
+#           D[i,j] = dist_earth(coords[i], coords[j]);
+            D[i,j] = haversine(flipdim(coords[i],1), flipdim(coords[j],1), 6371e3)
         end
     end
 
@@ -127,14 +130,14 @@ function test_underground(distance_option="no_distance")
     D = distance_matrix(data["Tube_Locations"]);
 
     if (distance_option == "no_distance")
-        C = StochasticCP.model_fit(A);
-        B = StochasticCP.model_gen(C);
+        C = model_fit(A);
+        B = model_gen(C);
     elseif (distance_option == "distance")
-        C = StochasticCP.model_fit(A, D);
-        B = StochasticCP.model_gen(C, D);
+        C = model_fit(A, D);
+        B = model_gen(C, D);
     elseif (distance_option == "rank_distance")
-        C = StochasticCP.model_fit(A, rank_distance_matrix(D));
-        B = StochasticCP.model_gen(C, rank_distance_matrix(D));
+        C = model_fit(A, rank_distance_matrix(D));
+        B = model_gen(C, rank_distance_matrix(D));
     else
         error("distance_option not supported");
     end
@@ -159,27 +162,30 @@ function plot_underground(A, C, data, option="degree", filename="output")
     end
 
     if (option == "degree")
-        ms = D;
+        ms = D*2;
     elseif (option == "core_score")
-        ms=(2.^C/maximum(2.^C))*5;
+        ms=(2.^C/maximum(2.^C))*10;
     else
         error("option not supported.");
     end
 
     coords = data["Tube_Locations"];
-    plot();
+    h = plot(size=(600,400), title="London Underground", 
+                             xlabel=L"\rm{Latitude} (^\circ)", 
+                             ylabel=L"\rm{Longitude}(^\circ)");
     for i in 1:n
         for j in i+1:n
             if (A[i,j] != 0)
-                plot!([coords[i][1], coords[j][1]], [coords[i][2], coords[j][2]], leg=false, color="black");
+                h = plot!([coords[i][1], coords[j][1]], [coords[i][2], coords[j][2]], leg=false, color="black", linewidth=1);
             end
         end
     end
-    scatter!([coord[1] for coord in coords], [coord[2] for coord in coords], ms=ms, c=color);
-    png("results/" * filename);
+    h = scatter!([coord[1] for coord in coords], [coord[2] for coord in coords], ms=ms, c=color);
+    savefig(h, "results/" * filename * ".pdf");
+
+    return h;
 end
 #----------------------------------------------------------------
-
 
 #----------------------------------------------------------------
 function test_openflight()
@@ -207,7 +213,7 @@ function test_openflight()
     end
     coordinates = [coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]';
     #--------------------------------
-    kdt = NearestNeighbors.KDTree(coordinates)
+    bt = BallTree(flipdim(coordinates,1), Haversine(6371e3));
     #--------------------------------
 
     #--------------------------------
@@ -224,13 +230,34 @@ function test_openflight()
         id2 = routes_dat[i,6];
         if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
             W[id2no[id1], id2no[id2]] += 1;
-            push!(dist_array, dist_earth(id2lc[id1], id2lc[id2]));
-            push!(rank_array, size(inrange(kdt, id2lc[id1], norm(id2lc[id1] - id2lc[id2])), 1));
-            push!(rank_array, size(inrange(kdt, id2lc[id2], norm(id2lc[id1] - id2lc[id2])), 1));
+            push!(dist_array, haversine(flipdim(id2lc[id1],1), flipdim(id2lc[id2],1), 6371e3));
+            push!(rank_array, size(inrange(bt, flipdim(id2lc[id1],1), haversine(flipdim(id2lc[id1],1), flipdim(id2lc[id2],1), 6371e3)), 1));
+            push!(rank_array, size(inrange(bt, flipdim(id2lc[id2],1), haversine(flipdim(id2lc[id1],1), flipdim(id2lc[id2],1), 6371e3)), 1));
         end
     end
     #--------------------------------
 
-    return dist_array, rank_array
+    return Array{Float64,1}(dist_array), Array{Int64,1}(rank_array)
+end
+#----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
+function hist_distance_rank(arr, b=0:50:6000)
+    h = plot(rank_array, 
+             bins=b, 
+             legend=:topright,
+             seriestype=:histogram, 
+             label="openflight data",
+             title="histogram of connections w.r.t. rank distance",
+             xlabel=L"$\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$",
+             ylabel="counts")
+
+    h = plot!(b[2:end], 26000 * b[2] ./ b[2:end], label=L"$1/\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$", size=(600,400));
+
+    savefig(h, "results/air_rank_distance_hist.pdf")
+    # png(h, "results/air_rank_distance_hist")
+
+    return h
 end
 #----------------------------------------------------------------
