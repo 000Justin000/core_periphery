@@ -1,7 +1,7 @@
 using StatsBase;
 using MAT;
 using NetworkGen;
-using StochasticCP;
+using StochasticCP_SGD;
 using Motif;
 using Colors;
 using NearestNeighbors;
@@ -85,8 +85,9 @@ function distance_matrix(coords)
     n = size(coords,1);
     D = spzeros(n,n);
 
-    for i in 1:n
-        for j in i+1:n
+    for j in 1:n
+        println("distance_matrix: ", j);
+        for i in j+1:n
 #           D[i,j] = dist_earth(coords[i], coords[j]);
             D[i,j] = haversine(flipdim(coords[i],1), flipdim(coords[j],1), 6371e3)
         end
@@ -107,10 +108,11 @@ function rank_distance_matrix(D)
     n = size(D,1);
 
     R = zeros(D);
-    for i in 1:n
-        od = sortperm(D[i,:]);
-        for j in 2:n
-            R[i,od[j]] = j-1;
+    for j in 1:n
+        println("rank_distance_matrix: ", j);
+        od = sortperm(D[:,j]);
+        for i in 2:n
+            R[od[i],j] = i-1;
         end
     end
 
@@ -121,7 +123,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_underground(distance_option="no_distance")
+function test_underground(distance_option="no_distance"; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
     data = MAT.matread("data/london_underground/london_underground_clean.mat");
 
     W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
@@ -129,14 +131,20 @@ function test_underground(distance_option="no_distance")
 
     D = distance_matrix(data["Tube_Locations"]);
 
+    opt = Dict()
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["step_size"] = step_size;
+    opt["max_num_step"] = max_num_step;
+
     if (distance_option == "no_distance")
-        C = model_fit(A);
+        C = model_fit(A; opt=opt);
         B = model_gen(C);
     elseif (distance_option == "distance")
-        C = model_fit(A, D);
+        C = model_fit(A, D; opt=opt);
         B = model_gen(C, D);
     elseif (distance_option == "rank_distance")
-        C = model_fit(A, rank_distance_matrix(D));
+        C = model_fit(A, rank_distance_matrix(D); opt=opt);
         B = model_gen(C, rank_distance_matrix(D));
     else
         error("distance_option not supported");
@@ -188,7 +196,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_openflight()
+function hist_openflight()
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -241,7 +249,6 @@ function test_openflight()
 end
 #----------------------------------------------------------------
 
-
 #----------------------------------------------------------------
 function hist_distance_rank(arr, b=0:50:6000)
     h = plot(rank_array, 
@@ -259,5 +266,142 @@ function hist_distance_rank(arr, b=0:50:6000)
     # png(h, "results/air_rank_distance_hist")
 
     return h
+end
+#----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
+function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+    #--------------------------------
+    # load airport data and location
+    #--------------------------------
+    airports_dat = readcsv("data/open_airlines/airports.dat");
+    num_airports = size(airports_dat,1);
+    no2id = Dict{Int64, Int64}();
+    id2no = Dict{Int64, Int64}();
+    id2lc = Dict{Int64, Array{Float64,1}}();
+    for i in 1:num_airports
+        no2id[i] = airports_dat[i,1];
+        id2no[airports_dat[i,1]] = i;
+        id2lc[airports_dat[i,1]] = airports_dat[i,7:8];
+    end
+    #--------------------------------
+
+    #--------------------------------
+    W = spzeros(num_airports,num_airports);
+    #--------------------------------
+    # the adjacency matrix
+    #--------------------------------
+    routes_dat = readcsv("data/open_airlines/routes.dat");
+    num_routes = size(routes_dat,1);
+    for i in 1:num_routes
+        id1 = routes_dat[i,4];
+        id2 = routes_dat[i,6];
+        if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
+            W[id2no[id1], id2no[id2]] += 1;
+        end
+    end
+    #--------------------------------
+    W = W + W';
+    #--------------------------------
+    A = spones(sparse(W));
+    #--------------------------------
+
+    #--------------------------------
+    # compute distance and rank
+    #--------------------------------
+    coordinates = [];
+    for i in 1:num_airports
+        push!(coordinates, id2lc[no2id[i]])
+    end
+    #--------------------------------
+
+    opt = Dict()
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["step_size"] = step_size;
+    opt["max_num_step"] = max_num_step;
+
+    if (dist_opt >= 0)
+        D = distance_matrix(coordinates).^dist_opt;
+        C = model_fit(A, D; opt=opt);
+        B = model_gen(C, D);
+    elseif (distance_option == -1)
+        D = rank_distance_matrix(distance_matrix(coordinates));
+        C = model_fit(A, D; opt=opt);
+        B = model_gen(C, D);
+    else
+        error("distance_option not supported");
+    end
+
+    return A, B, C, D, coordinates
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_openflight(A, C, coords, option="degree", filename="output")
+    @assert issymmetric(A);
+    n = size(A,1);
+
+    D = vec(sum(A,1));
+    
+    if (option == "degree")
+        color = [(i in sortperm(D, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
+    elseif (option == "core_score")
+        color = [(i in sortperm(C, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
+    else
+        error("option not supported.");
+    end
+
+    if (option == "degree")
+        rk = sortperm(sortperm(D, rev=true))
+        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
+    elseif (option == "core_score")
+        rk = sortperm(sortperm(C, rev=true))
+        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
+    else
+        error("option not supported.");
+    end
+
+    h = plot(size=(1200,650), title="Openflight", 
+                              xlabel=L"\rm{Latitude} (^\circ)", 
+                              ylabel=L"\rm{Longitude}(^\circ)");
+    for i in 1:n
+        for j in i+1:n
+            if (A[i,j] != 0)
+                if (abs(coords[i][2] - coords[j][2]) <= 180)
+                    h = plot!([coords[i][2], coords[j][2]], 
+                              [coords[i][1], coords[j][1]], 
+                              legend=false, 
+                              color="black", 
+                              linewidth=0.10,
+                              alpha=0.15);
+                else
+                    min_id = coords[i][2] <= coords[j][2] ? i : j;
+                    max_id = coords[i][2] >  coords[j][2] ? i : j;
+
+                    lat_c  = ((coords[min_id][1] - coords[max_id][1]) / ((coords[min_id][2] + 360) - coords[max_id][2])) * (180 - coords[max_id][2]) + coords[max_id][1]
+
+                    h = plot!([-180.0, coords[min_id][2]], 
+                              [lat_c,  coords[min_id][1]], 
+                              legend=false, 
+                              color="black", 
+                              linewidth=0.10,
+                              alpha=0.15);
+
+                    h = plot!([coords[max_id][2], 180.0], 
+                              [coords[max_id][1], lat_c], 
+                              legend=false, 
+                              color="black", 
+                              linewidth=0.10,
+                              alpha=0.15);
+                end
+            end
+        end
+    end
+    h = scatter!([coord[2] for coord in coords], [coord[1] for coord in coords], ms=ms, c=color);
+    savefig(h, "results/" * filename * ".pdf");
+
+    return h;
 end
 #----------------------------------------------------------------
