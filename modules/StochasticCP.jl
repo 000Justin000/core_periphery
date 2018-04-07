@@ -76,7 +76,7 @@ module StochasticCP
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
             else
-                println(norm(C-C0)/norm(C));
+                println(num_step, ": ", norm(C-C0)/norm(C));
             end
         end
     

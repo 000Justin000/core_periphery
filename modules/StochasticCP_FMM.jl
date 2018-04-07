@@ -225,7 +225,7 @@ module StochasticCP_FMM
             G = D - expected_degree(C, coords, CoM2, dist, od, bt, opt["ratio"])
 
             # update the core score
-            C = C + 0.5*G*opt["step_size"] + (rand(n)*2-1)*opt["step_size"];
+            C = C + 0.5*G*opt["step_size"] + (rand(n)*2-1)*opt["step_size"]*0.0;
 
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
