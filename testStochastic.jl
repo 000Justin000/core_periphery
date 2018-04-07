@@ -1,7 +1,7 @@
 using StatsBase;
 using MAT;
 using NetworkGen;
-using StochasticCP_SGD;
+using StochasticCP_FMM;
 using Motif;
 using Colors;
 using NearestNeighbors;
@@ -64,6 +64,29 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
+function CoM2(coord1, coord2, m1=1.0, m2=1.0)
+    lon1 = coord1[1]/180*pi
+    lat1 = coord1[2]/180*pi
+    lon2 = coord2[1]/180*pi
+    lat2 = coord2[2]/180*pi
+
+    x1, y1, z1 = cos(lat1)*cos(lon1), cos(lat1)*sin(lon1), sin(lat1)
+    x2, y2, z2 = cos(lat2)*cos(lon2), cos(lat2)*sin(lon2), sin(lat2)
+
+    x = (x1*m1+x2*m2)/(m1+m2)
+    y = (y1*m1+y2*m2)/(m1+m2)
+    z = (z1*m1+z2*m2)/(m1+m2)
+
+    lon = atan2(y,x)
+    hyp = sqrt(x*x+y*y)
+    lat = atan2(z,hyp)
+
+    return [lon/pi*180, lat/pi*180]
+end
+#----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
 function dist_earth(coord1, coord2)
     lat1 = coord1[1]/180 * pi;
     lon1 = coord1[2]/180 * pi;
@@ -83,7 +106,7 @@ end
 #----------------------------------------------------------------
 function distance_matrix(coords)
     n = size(coords,1);
-    D = spzeros(n,n);
+    D = zeros(n,n);
 
     for j in 1:n
         println("distance_matrix: ", j);
@@ -311,8 +334,10 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     # compute distance and rank
     #--------------------------------
     coordinates = [];
+    coords = zeros(2,num_airports);
     for i in 1:num_airports
         push!(coordinates, id2lc[no2id[i]])
+        coords[:,i] = flipdim(id2lc[no2id[i]],1)
     end
     #--------------------------------
 
@@ -324,7 +349,8 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
 
     if (dist_opt >= 0)
         D = distance_matrix(coordinates).^dist_opt;
-        C = model_fit(A, D; opt=opt);
+        # C = model_fit(A, D; opt=opt);
+        C = model_fit(A, coords, CoM2, Haversine(6371e3), 2; opt=opt);
         B = model_gen(C, D);
     elseif (distance_option == -1)
         D = rank_distance_matrix(distance_matrix(coordinates));
@@ -366,39 +392,39 @@ function plot_openflight(A, C, coords, option="degree", filename="output")
     h = plot(size=(1200,650), title="Openflight", 
                               xlabel=L"\rm{Latitude} (^\circ)", 
                               ylabel=L"\rm{Longitude}(^\circ)");
-    for i in 1:n
-        for j in i+1:n
-            if (A[i,j] != 0)
-                if (abs(coords[i][2] - coords[j][2]) <= 180)
-                    h = plot!([coords[i][2], coords[j][2]], 
-                              [coords[i][1], coords[j][1]], 
-                              legend=false, 
-                              color="black", 
-                              linewidth=0.10,
-                              alpha=0.15);
-                else
-                    min_id = coords[i][2] <= coords[j][2] ? i : j;
-                    max_id = coords[i][2] >  coords[j][2] ? i : j;
+#   for i in 1:n
+#       for j in i+1:n
+#           if (A[i,j] != 0)
+#               if (abs(coords[i][2] - coords[j][2]) <= 180)
+#                   h = plot!([coords[i][2], coords[j][2]], 
+#                             [coords[i][1], coords[j][1]], 
+#                             legend=false, 
+#                             color="black", 
+#                             linewidth=0.10,
+#                             alpha=0.15);
+#               else
+#                   min_id = coords[i][2] <= coords[j][2] ? i : j;
+#                   max_id = coords[i][2] >  coords[j][2] ? i : j;
 
-                    lat_c  = ((coords[min_id][1] - coords[max_id][1]) / ((coords[min_id][2] + 360) - coords[max_id][2])) * (180 - coords[max_id][2]) + coords[max_id][1]
+#                   lat_c  = ((coords[min_id][1] - coords[max_id][1]) / ((coords[min_id][2] + 360) - coords[max_id][2])) * (180 - coords[max_id][2]) + coords[max_id][1]
 
-                    h = plot!([-180.0, coords[min_id][2]], 
-                              [lat_c,  coords[min_id][1]], 
-                              legend=false, 
-                              color="black", 
-                              linewidth=0.10,
-                              alpha=0.15);
+#                   h = plot!([-180.0, coords[min_id][2]], 
+#                             [lat_c,  coords[min_id][1]], 
+#                             legend=false, 
+#                             color="black", 
+#                             linewidth=0.10,
+#                             alpha=0.15);
 
-                    h = plot!([coords[max_id][2], 180.0], 
-                              [coords[max_id][1], lat_c], 
-                              legend=false, 
-                              color="black", 
-                              linewidth=0.10,
-                              alpha=0.15);
-                end
-            end
-        end
-    end
+#                   h = plot!([coords[max_id][2], 180.0], 
+#                             [coords[max_id][1], lat_c], 
+#                             legend=false, 
+#                             color="black", 
+#                             linewidth=0.10,
+#                             alpha=0.15);
+#               end
+#           end
+#       end
+#   end
     h = scatter!([coord[2] for coord in coords], [coord[1] for coord in coords], ms=ms, c=color);
     savefig(h, "results/" * filename * ".pdf");
 
