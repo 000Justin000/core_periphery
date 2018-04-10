@@ -64,7 +64,13 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function CoM2(coord1, coord2, m1=1.0, m2=1.0)
+function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
+    return [(coord1[1]*m1+coord2[1]*m2)/(m1+m2), (coord1[2]*m1+coord2[2]*m2)/(m1+m2)];
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function Haversine_CoM2(coord1, coord2, m1=1.0, m2=1.0)
     lon1 = coord1[1]/180*pi
     lat1 = coord1[2]/180*pi
     lon2 = coord2[1]/180*pi
@@ -85,7 +91,6 @@ function CoM2(coord1, coord2, m1=1.0, m2=1.0)
 end
 #----------------------------------------------------------------
 
-
 #----------------------------------------------------------------
 function dist_earth(coord1, coord2)
     lat1 = coord1[1]/180 * pi;
@@ -104,14 +109,31 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function distance_matrix(coords)
+function Euclidean_matrix(coords)
     n = size(coords,1);
     D = zeros(n,n);
 
     for j in 1:n
-        println("distance_matrix: ", j);
         for i in j+1:n
-#           D[i,j] = dist_earth(coords[i], coords[j]);
+            D[i,j] = euclidean(coords[i], coords[j])
+        end
+    end
+
+    D = D + D';
+
+    @assert issymmetric(D);
+
+    return D;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function Haversine_matrix(coords)
+    n = size(coords,1);
+    D = zeros(n,n);
+
+    for j in 1:n
+        for i in j+1:n
             D[i,j] = haversine(flipdim(coords[i],1), flipdim(coords[j],1), 6371e3)
         end
     end
@@ -146,13 +168,108 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
+function plot_core_periphery(h, A, C, coords, option="degree";
+                             plot_links=false,
+                             distance="Euclidean")
+    @assert issymmetric(A);
+    n = size(A,1);
+
+    D = vec(sum(A,1));
+    
+    if (option == "degree")
+        color = [(i in sortperm(D, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
+    elseif (option == "core_score")
+        color = [(i in sortperm(C, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
+    else
+        error("option not supported.");
+    end
+
+    if (option == "degree")
+        rk = sortperm(sortperm(D, rev=true))
+        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
+    elseif (option == "core_score")
+        rk = sortperm(sortperm(C, rev=true))
+        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
+    else
+        error("option not supported.");
+    end
+
+    #------------------------------------------------------------
+    if (plot_links == true)
+        #------------------------------------------------------------
+        if (distance == "Euclidean")
+            #--------------------------------------------------------
+            for i in 1:n
+                for j in i+1:n
+                    #------------------------------------------------
+                    if (A[i,j] != 0)
+                        plot!(h, [coords[i][1], coords[j][1]], 
+                                 [coords[i][2], coords[j][2]], 
+                                 legend=false, 
+                                 color="black", 
+                                 linewidth=0.10,
+                                 alpha=0.15);
+                    end
+                    #------------------------------------------------
+                end
+            end
+            #--------------------------------------------------------
+        elseif (distance == "Haversine")
+            #--------------------------------------------------------
+            for i in 1:n
+                for j in i+1:n
+                    #------------------------------------------------
+                    if (A[i,j] != 0)
+                        if (abs(coords[i][1] - coords[j][1]) <= 180)
+                            plot!(h, [coords[i][1], coords[j][1]], 
+                                     [coords[i][2], coords[j][2]], 
+                                     legend=false, 
+                                     color="black", 
+                                     linewidth=0.10,
+                                     alpha=0.15);
+                        else
+                            min_id = coords[i][1] <= coords[j][1] ? i : j;
+                            max_id = coords[i][1] >  coords[j][1] ? i : j;
+        
+                            lat_c  = ((coords[min_id][2] - coords[max_id][2]) / ((coords[min_id][1] + 360) - coords[max_id][1])) * (180 - coords[max_id][1]) + coords[max_id][2]
+        
+                            plot!(h, [-180.0, coords[min_id][1]], 
+                                     [lat_c,  coords[min_id][2]], 
+                                     legend=false, 
+                                     color="black", 
+                                     linewidth=0.10,
+                                     alpha=0.15);
+        
+                            plot!(h, [coords[max_id][1], 180.0], 
+                                     [coords[max_id][2], lat_c], 
+                                     legend=false, 
+                                     color="black", 
+                                     linewidth=0.10,
+                                     alpha=0.15);
+                        end
+                    end
+                    #------------------------------------------------
+                end
+            end
+            #--------------------------------------------------------
+        else
+            error("distance not supported.");
+        end
+        #------------------------------------------------------------
+    end
+    #----------------------------------------------------------------
+    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=ms, c=color, label="");
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
 function test_underground(distance_option="no_distance"; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
     data = MAT.matread("data/london_underground/london_underground_clean.mat");
 
     W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
     A = spones(sparse(W));
 
-    D = distance_matrix(data["Tube_Locations"]);
+    D = Haversine_matrix(data["Tube_Locations"]);
 
     opt = Dict()
     opt["ratio"] = ratio;
@@ -348,86 +465,98 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     opt["max_num_step"] = max_num_step;
 
     if (dist_opt >= 0)
-        D = distance_matrix(coordinates).^dist_opt;
+        D = Haversine_matrix(coordinates).^dist_opt;
         # C = model_fit(A, D; opt=opt);
-        C = model_fit(A, coords, CoM2, Haversine(6371e3), 2; opt=opt);
+        C = model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), 2; opt=opt);
         B = model_gen(C, D);
     elseif (distance_option == -1)
-        D = rank_distance_matrix(distance_matrix(coordinates));
+        D = rank_distance_matrix(Haversine_matrix(coordinates));
         C = model_fit(A, D; opt=opt);
         B = model_gen(C, D);
     else
         error("distance_option not supported");
     end
 
-    return A, B, C, D, coordinates
+    return A, B, C, Haversine_matrix(coordinates), coordinates
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function plot_openflight(A, C, coords, option="degree", filename="output")
-    @assert issymmetric(A);
-    n = size(A,1);
-
-    D = vec(sum(A,1));
-    
-    if (option == "degree")
-        color = [(i in sortperm(D, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
-    elseif (option == "core_score")
-        color = [(i in sortperm(C, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
-    else
-        error("option not supported.");
-    end
-
-    if (option == "degree")
-        rk = sortperm(sortperm(D, rev=true))
-        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
-    elseif (option == "core_score")
-        rk = sortperm(sortperm(C, rev=true))
-        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
-    else
-        error("option not supported.");
-    end
-
     h = plot(size=(1200,650), title="Openflight", 
                               xlabel=L"\rm{Latitude} (^\circ)", 
                               ylabel=L"\rm{Longitude}(^\circ)");
-#   for i in 1:n
-#       for j in i+1:n
-#           if (A[i,j] != 0)
-#               if (abs(coords[i][2] - coords[j][2]) <= 180)
-#                   h = plot!([coords[i][2], coords[j][2]], 
-#                             [coords[i][1], coords[j][1]], 
-#                             legend=false, 
-#                             color="black", 
-#                             linewidth=0.10,
-#                             alpha=0.15);
-#               else
-#                   min_id = coords[i][2] <= coords[j][2] ? i : j;
-#                   max_id = coords[i][2] >  coords[j][2] ? i : j;
 
-#                   lat_c  = ((coords[min_id][1] - coords[max_id][1]) / ((coords[min_id][2] + 360) - coords[max_id][2])) * (180 - coords[max_id][2]) + coords[max_id][1]
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], "degree";
+                        plot_links=true,
+                        distance="Haversine")
 
-#                   h = plot!([-180.0, coords[min_id][2]], 
-#                             [lat_c,  coords[min_id][1]], 
-#                             legend=false, 
-#                             color="black", 
-#                             linewidth=0.10,
-#                             alpha=0.15);
-
-#                   h = plot!([coords[max_id][2], 180.0], 
-#                             [coords[max_id][1], lat_c], 
-#                             legend=false, 
-#                             color="black", 
-#                             linewidth=0.10,
-#                             alpha=0.15);
-#               end
-#           end
-#       end
-#   end
-    h = scatter!([coord[2] for coord in coords], [coord[1] for coord in coords], ms=ms, c=color);
     savefig(h, "results/" * filename * ".pdf");
-
     return h;
 end
 #----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+    #--------------------------------
+    # load fungals data
+    #--------------------------------
+    data = MAT.matread("data/fungal_networks/Conductance/Ag_M_I+4R_U_N_42d_1.mat");
+    coords = data["coordinates"]';
+    A = spones(data["A"]);
+    #--------------------------------
+
+    coordinates = [[coords[1,i], coords[2,i]] for i in 1:size(coords,2)];
+
+    opt = Dict()
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["step_size"] = step_size;
+    opt["max_num_step"] = max_num_step;
+
+    #--------------------------------
+    if (dist_opt >= 0)
+        D = Euclidean_matrix(coordinates).^dist_opt;
+        # C = model_fit(A, D; opt=opt);
+        C = model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
+        B = model_gen(C, D);
+    elseif (distance_option == -1)
+        D = rank_distance_matrix(Euclidean_matrix(coordinates));
+        C = model_fit(A, D; opt=opt);
+        B = model_gen(C, D);
+    else
+        error("distance_option not supported");
+    end
+
+    return A, B, C, Euclidean_matrix(coordinates), coordinates
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_mushroom(A, C, coords, option="degree", filename="output")
+    h = plot(size=(1200,650), title="Mushroom",
+                              xlabel=L"x", 
+                              ylabel=L"y");
+
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], "degree";
+                        plot_links=true,
+                        distance="Euclidean")
+
+    savefig(h, "results/" * filename * ".pdf");
+    return h;
+end
+#----------------------------------------------------------------
+
+
+function check(C, D, coordinates, dist_opt, ratio)
+    coords = [coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]';
+    bt = BallTree(coords, Euclidean(), leafsize=1);
+    dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
+    epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^dist_opt), 1));
+    epd      = StochasticCP_FMM.expected_degree(C, coords, Euclidean_CoM2, dist, dist_opt, bt, ratio);
+
+    order = sortperm(C, rev=false);
+    plot(epd_real[order])
+    plot!(epd[order])
+    plot!(epd[order] - epd_real[order])
+end

@@ -92,12 +92,11 @@ module StochasticCP
         @assert issymmetric(D);
 
         n = size(C,1);
-        rho = probability_matrix(C,D);
 
         A = spzeros(n,n);
-        for i in 1:n
-            for j in i+1:n
-                A[i,j] = rand() < rho[i,j] ? 1 : 0;
+        for j in 1:n
+            for i in j+1:n
+                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]) ? 1 : 0;
             end
         end
 

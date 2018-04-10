@@ -42,7 +42,7 @@ module StochasticCP_FMM
             distance = evaluate(bt.metric, bt.hyper_spheres[idx_1].center, bt.hyper_spheres[idx_2].center)
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
-            if (distance >= 2*(sp1r + sp2r))
+            if (distance >= 4*(sp1r + sp2r))
                 cmp[idx_1].pot += cmp[idx_2].m / distance^od
                 cmp[idx_2].pot += cmp[idx_1].m / distance^od
                 cmp[end].pot += 1
@@ -214,7 +214,7 @@ module StochasticCP_FMM
         acc_C    = zeros(n);
 
         dist = Dict{Int64,Array{Float64,1}}()
-        bt = BallTree(coords, Haversine(6317e3), leafsize=1);
+        bt = BallTree(coords, metric, leafsize=1);
 
         while(!converged && num_step < opt["max_num_step"])
             num_step += 1;
@@ -233,7 +233,7 @@ module StochasticCP_FMM
                 println(num_step, ": ", norm(C-C0)/norm(C));
             end
 
-            if (num_step > 0.7 * opt["max_num_step"])
+            if (num_step > 0.9 * opt["max_num_step"] - 1)
                 acc_step += 1;
                 acc_C    += C;
             end
@@ -254,8 +254,8 @@ module StochasticCP_FMM
         n = size(C,1);
 
         A = spzeros(n,n);
-        for i in 1:n
-            for j in i+1:n
+        for j in 1:n
+            for i in j+1:n
                 A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]) ? 1 : 0;
             end
         end
