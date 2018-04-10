@@ -42,7 +42,7 @@ module StochasticCP_FMM
             distance = evaluate(bt.metric, bt.hyper_spheres[idx_1].center, bt.hyper_spheres[idx_2].center)
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
-            if (distance >= 4*(sp1r + sp2r))
+            if (distance >= 2*(sp1r + sp2r))
                 cmp[idx_1].pot += cmp[idx_2].m / distance^od
                 cmp[idx_2].pot += cmp[idx_1].m / distance^od
                 cmp[end].pot += 1
