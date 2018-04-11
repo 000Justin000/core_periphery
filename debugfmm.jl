@@ -50,12 +50,12 @@ function check(C, D, coordinates, metric, CoM2, dist_opt, ratio)
     plot!(h, epd[order]);
     plot!(h, epd[order] - epd_real[order]);
 
-    return h;
+    return h, fmm_tree;
 end
 #----------------------------------------------------------------
 
 data = MAT.matread("results/openflight_distance3.mat")
 metric = Haversine(6371e3);
 CoM2 = Haversine_CoM2;
-h = check(data["C"], data["D"], data["coordinates"], metric, CoM2, 3, 0.15);
+h, fmm_tree = check(data["C"], data["D"], data["coordinates"], metric, CoM2, 3, 0.15);
 display(h);
