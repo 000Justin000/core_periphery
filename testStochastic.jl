@@ -1,7 +1,7 @@
 using StatsBase;
 using MAT;
 using NetworkGen;
-using StochasticCP_FMM;
+using StochasticCP_SGD;
 using Motif;
 using Colors;
 using NearestNeighbors;
@@ -185,9 +185,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     end
 
     if (option == "degree")
+        println("option: degree")
         rk = sortperm(sortperm(D, rev=true))
         ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
     elseif (option == "core_score")
+        println("option: core_score")
         rk = sortperm(sortperm(C, rev=true))
         ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
     else
@@ -466,10 +468,10 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
 
     if (dist_opt >= 0)
         D = Haversine_matrix(coordinates).^dist_opt;
-        # C = model_fit(A, D; opt=opt);
-        C = model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), 2; opt=opt);
+        C = model_fit(A, D; opt=opt);
+        # C = model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), dist_opt; opt=opt);
         B = model_gen(C, D);
-    elseif (distance_option == -1)
+    elseif (dist_opt == -1)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
         C = model_fit(A, D; opt=opt);
         B = model_gen(C, D);
@@ -487,7 +489,7 @@ function plot_openflight(A, C, coords, option="degree", filename="output")
                               xlabel=L"\rm{Latitude} (^\circ)", 
                               ylabel=L"\rm{Longitude}(^\circ)");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], "degree";
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
                         distance="Haversine")
 
@@ -501,7 +503,8 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     #--------------------------------
     # load fungals data
     #--------------------------------
-    data = MAT.matread("data/fungal_networks/Conductance/Ag_M_I+4R_U_N_42d_1.mat");
+#   data = MAT.matread("data/fungal_networks/Conductance/Ag_M_I+4R_U_N_42d_1.mat");
+    data = MAT.matread("data/fungal_networks/Conductance/Pv_M_5xI_U_N_35d_1.mat");
     coords = data["coordinates"]';
     A = spones(data["A"]);
     #--------------------------------
@@ -517,10 +520,10 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     #--------------------------------
     if (dist_opt >= 0)
         D = Euclidean_matrix(coordinates).^dist_opt;
-        # C = model_fit(A, D; opt=opt);
-        C = model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
+        C = model_fit(A, D; opt=opt);
+        # C = model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
         B = model_gen(C, D);
-    elseif (distance_option == -1)
+    elseif (dist_opt == -1)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
         C = model_fit(A, D; opt=opt);
         B = model_gen(C, D);
@@ -538,7 +541,7 @@ function plot_mushroom(A, C, coords, option="degree", filename="output")
                               xlabel=L"x", 
                               ylabel=L"y");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], "degree";
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
                         distance="Euclidean")
 
@@ -548,12 +551,12 @@ end
 #----------------------------------------------------------------
 
 
-function check(C, D, coordinates, dist_opt, ratio)
+function check(C, D, coordinates, CoM2, dist_opt, ratio)
     coords = [coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]';
     bt = BallTree(coords, Euclidean(), leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
     epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^dist_opt), 1));
-    epd      = StochasticCP_FMM.expected_degree(C, coords, Euclidean_CoM2, dist, dist_opt, bt, ratio);
+    epd      = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, dist_opt, bt, ratio);
 
     order = sortperm(C, rev=false);
     plot(epd_real[order])

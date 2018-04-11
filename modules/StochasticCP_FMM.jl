@@ -16,7 +16,7 @@ module StochasticCP_FMM
         pot::Float64
     end
     #-----------------------------------------------------------------------------
-    
+
     #-----------------------------------------------------------------------------
     # recursively compute the center of mass of each node
     #-----------------------------------------------------------------------------
@@ -26,12 +26,12 @@ module StochasticCP_FMM
         else
             fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2)
             fill_cm!(cmp, idx*2+1, bt, ms, roid, srid, CoM2)
-    
+
             cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m), cmp[idx*2].m + cmp[idx*2+1].m, 0.0)
         end
     end
     #-----------------------------------------------------------------------------
-    
+
     #-----------------------------------------------------------------------------
     # compute the potential between two nodes
     #-----------------------------------------------------------------------------
@@ -43,8 +43,13 @@ module StochasticCP_FMM
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
             if (distance >= 2*(sp1r + sp2r))
-                cmp[idx_1].pot += cmp[idx_2].m / distance^od
-                cmp[idx_2].pot += cmp[idx_1].m / distance^od
+                if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
+                    cmp[idx_1].pot += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^od);
+                    cmp[idx_2].pot += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^od);
+                else
+                    cmp[idx_1].pot += cmp[idx_2].m / distance^od;
+                    cmp[idx_2].pot += cmp[idx_1].m / distance^od;
+                end
                 cmp[end].pot += 1
             elseif (sp1r <= sp2r)
                 fill_p2!(cmp, idx_1, idx_2*2,   bt, od)
@@ -56,7 +61,7 @@ module StochasticCP_FMM
         end
     end
     #-----------------------------------------------------------------------------
-    
+
     #-----------------------------------------------------------------------------
     # recursively compute the potential at each level of the tree
     #-----------------------------------------------------------------------------
@@ -139,7 +144,7 @@ module StochasticCP_FMM
         # hyper(s)phere id of the (r)eordered data points
         rsid = Dict((idx >= td.cross_node) ? (td.offset_cross + idx => idx) : (td.offset + idx => idx) for idx in (ni+1:ni+nl));
         #-------------------------------------------------------------------------
-        # data structure that stores the node's CoM, mass, and potential 
+        # data structure that stores the node's CoM, mass, and potential
         # corresponding to nodes in BallTree data structure
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
@@ -167,7 +172,7 @@ module StochasticCP_FMM
         end
         #-------------------------------------------------------------------------
 
-        return epd;
+        return epd, fmm_tree;
     end
     #-----------------------------------------------------------------------------
 
@@ -240,7 +245,7 @@ module StochasticCP_FMM
         end
 
         CC = acc_step > 0 ? acc_C/acc_step : C;
-    
+
         return CC;
     end
     #-----------------------------------------------------------------------------
