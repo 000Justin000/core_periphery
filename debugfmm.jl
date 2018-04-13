@@ -54,8 +54,8 @@ function check(C, D, coordinates, metric, CoM2, dist_opt, ratio)
 end
 #----------------------------------------------------------------
 
-data = MAT.matread("results/openflight_distance3.mat")
+data = MAT.matread("results/openflight_distance2.mat")
 metric = Haversine(6371e3);
 CoM2 = Haversine_CoM2;
-h, fmm_tree = check(data["C"], data["D"], data["coordinates"], metric, CoM2, 3, 0.15);
+h, fmm_tree = check(data["C"], data["D"], data["coordinates"], metric, CoM2, 2, 0.03);
 display(h);

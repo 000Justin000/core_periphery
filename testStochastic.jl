@@ -1,7 +1,9 @@
 using StatsBase;
 using MAT;
 using NetworkGen;
+using StochasticCP;
 using StochasticCP_SGD;
+using StochasticCP_FMM;
 using Motif;
 using Colors;
 using NearestNeighbors;
@@ -20,7 +22,7 @@ function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
         #--------------------------------------------------------
         for itr in 1:repeat
             A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
-            C   = model_fit(A);
+            C   = StochasticCP.model_fit(A);
             od  = sortperm(C, rev=true);
             cr += (1/repeat) * sum([i<=n*cratio ? 1 : 0 for i in od[1:Int(n*cratio)]])/(n*cratio);
         end
@@ -35,7 +37,7 @@ end
 #----------------------------------------------------------------
 function test_lattice(n)
     A = NetworkGen.periodic_lattice(n,n);
-    C = model_fit(A);
+    C = StochasticCP.model_fit(A);
 
     plot(C);
 end
@@ -44,7 +46,7 @@ end
 #----------------------------------------------------------------
 function test_reachability()
     data = MAT.matread("data/benson/reachability.mat");
-    
+
     od = sortperm(vec(data["populations"]), rev=true);
     data["A"]           = data["A"][od,od]
     data["labels"]      = data["labels"][od]
@@ -54,8 +56,8 @@ function test_reachability()
 
     A  = spones(data["A"]);
     W0 = Motif.Me1(A);
-    C  = model_fit(W0);
-    W1 = model_gen(C);
+    C  = StochasticCP.model_fit(W0);
+    W1 = StochasticCP.model_gen(C);
 
     plot(C);
 
@@ -175,7 +177,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     n = size(A,1);
 
     D = vec(sum(A,1));
-    
+
     if (option == "degree")
         color = [(i in sortperm(D, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
@@ -205,10 +207,10 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                 for j in i+1:n
                     #------------------------------------------------
                     if (A[i,j] != 0)
-                        plot!(h, [coords[i][1], coords[j][1]], 
-                                 [coords[i][2], coords[j][2]], 
-                                 legend=false, 
-                                 color="black", 
+                        plot!(h, [coords[i][1], coords[j][1]],
+                                 [coords[i][2], coords[j][2]],
+                                 legend=false,
+                                 color="black",
                                  linewidth=0.10,
                                  alpha=0.15);
                     end
@@ -223,29 +225,29 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                     #------------------------------------------------
                     if (A[i,j] != 0)
                         if (abs(coords[i][1] - coords[j][1]) <= 180)
-                            plot!(h, [coords[i][1], coords[j][1]], 
-                                     [coords[i][2], coords[j][2]], 
-                                     legend=false, 
-                                     color="black", 
+                            plot!(h, [coords[i][1], coords[j][1]],
+                                     [coords[i][2], coords[j][2]],
+                                     legend=false,
+                                     color="black",
                                      linewidth=0.10,
                                      alpha=0.15);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
-        
+
                             lat_c  = ((coords[min_id][2] - coords[max_id][2]) / ((coords[min_id][1] + 360) - coords[max_id][1])) * (180 - coords[max_id][1]) + coords[max_id][2]
-        
-                            plot!(h, [-180.0, coords[min_id][1]], 
-                                     [lat_c,  coords[min_id][2]], 
-                                     legend=false, 
-                                     color="black", 
+
+                            plot!(h, [-180.0, coords[min_id][1]],
+                                     [lat_c,  coords[min_id][2]],
+                                     legend=false,
+                                     color="black",
                                      linewidth=0.10,
                                      alpha=0.15);
-        
-                            plot!(h, [coords[max_id][1], 180.0], 
-                                     [coords[max_id][2], lat_c], 
-                                     legend=false, 
-                                     color="black", 
+
+                            plot!(h, [coords[max_id][1], 180.0],
+                                     [coords[max_id][2], lat_c],
+                                     legend=false,
+                                     color="black",
                                      linewidth=0.10,
                                      alpha=0.15);
                         end
@@ -280,14 +282,14 @@ function test_underground(distance_option="no_distance"; ratio=1.0, thres=1.0e-6
     opt["max_num_step"] = max_num_step;
 
     if (distance_option == "no_distance")
-        C = model_fit(A; opt=opt);
-        B = model_gen(C);
+        C = StochasticCP.model_fit(A; opt=opt);
+        B = StochasticCP.model_gen(C);
     elseif (distance_option == "distance")
-        C = model_fit(A, D; opt=opt);
-        B = model_gen(C, D);
+        C = StochasticCP.model_fit(A, D; opt=opt);
+        B = StochasticCP.model_gen(C, D);
     elseif (distance_option == "rank_distance")
-        C = model_fit(A, rank_distance_matrix(D); opt=opt);
-        B = model_gen(C, rank_distance_matrix(D));
+        C = StochasticCP.model_fit(A, rank_distance_matrix(D); opt=opt);
+        B = StochasticCP.model_gen(C, rank_distance_matrix(D));
     else
         error("distance_option not supported");
     end
@@ -302,7 +304,7 @@ function plot_underground(A, C, data, option="degree", filename="output")
     n = size(A,1);
 
     D = vec(sum(A,1));
-    
+
     if (option == "degree")
         color = [(i in sortperm(D, rev=true)[1:60] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
@@ -320,8 +322,8 @@ function plot_underground(A, C, data, option="degree", filename="output")
     end
 
     coords = data["Tube_Locations"];
-    h = plot(size=(600,400), title="London Underground", 
-                             xlabel=L"\rm{Latitude} (^\circ)", 
+    h = plot(size=(600,400), title="London Underground",
+                             xlabel=L"\rm{Latitude} (^\circ)",
                              ylabel=L"\rm{Longitude}(^\circ)");
     for i in 1:n
         for j in i+1:n
@@ -393,10 +395,10 @@ end
 
 #----------------------------------------------------------------
 function hist_distance_rank(arr, b=0:50:6000)
-    h = plot(rank_array, 
-             bins=b, 
+    h = plot(rank_array,
+             bins=b,
              legend=:topright,
-             seriestype=:histogram, 
+             seriestype=:histogram,
              label="openflight data",
              title="histogram of connections w.r.t. rank distance",
              xlabel=L"$\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$",
@@ -468,13 +470,13 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
 
     if (dist_opt >= 0)
         D = Haversine_matrix(coordinates).^dist_opt;
-        C = model_fit(A, D; opt=opt);
-        # C = model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), dist_opt; opt=opt);
-        B = model_gen(C, D);
+        # C = StochasticCP.model_fit(A, D; opt=opt);
+        C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D);
     elseif (dist_opt == -1)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        C = model_fit(A, D; opt=opt);
-        B = model_gen(C, D);
+        C = StochasticCP.model_fit(A, D; opt=opt);
+        B = StochasticCP.model_gen(C, D);
     else
         error("distance_option not supported");
     end
@@ -485,8 +487,8 @@ end
 
 #----------------------------------------------------------------
 function plot_openflight(A, C, coords, option="degree", filename="output")
-    h = plot(size=(1200,650), title="Openflight", 
-                              xlabel=L"\rm{Latitude} (^\circ)", 
+    h = plot(size=(1200,650), title="Openflight",
+                              xlabel=L"\rm{Latitude} (^\circ)",
                               ylabel=L"\rm{Longitude}(^\circ)");
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
@@ -520,13 +522,13 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     #--------------------------------
     if (dist_opt >= 0)
         D = Euclidean_matrix(coordinates).^dist_opt;
-        C = model_fit(A, D; opt=opt);
-        # C = model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
-        B = model_gen(C, D);
+        # C = StochasticCP.model_fit(A, D; opt=opt);
+        C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D);
     elseif (dist_opt == -1)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C = model_fit(A, D; opt=opt);
-        B = model_gen(C, D);
+        C = StochasticCP.model_fit(A, D; opt=opt);
+        B = StochasticCP.model_gen(C, D);
     else
         error("distance_option not supported");
     end
@@ -538,7 +540,7 @@ end
 #----------------------------------------------------------------
 function plot_mushroom(A, C, coords, option="degree", filename="output")
     h = plot(size=(1200,650), title="Mushroom",
-                              xlabel=L"x", 
+                              xlabel=L"x",
                               ylabel=L"y");
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
@@ -551,15 +553,19 @@ end
 #----------------------------------------------------------------
 
 
-function check(C, D, coordinates, CoM2, dist_opt, ratio)
-    coords = [coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]';
-    bt = BallTree(coords, Euclidean(), leafsize=1);
+#----------------------------------------------------------------
+function check(C, D, coordinates, metric, CoM2, dist_opt, ratio)
+    coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
+    bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
     epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^dist_opt), 1));
-    epd      = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, dist_opt, bt, ratio);
+    epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, dist_opt, bt, ratio);
 
-    order = sortperm(C, rev=false);
-    plot(epd_real[order])
-    plot!(epd[order])
-    plot!(epd[order] - epd_real[order])
+    order = sortperm(epd_real, rev=false);
+    h = plot(epd_real[order]);
+    plot!(h, epd[order]);
+    plot!(h, epd[order] - epd_real[order]);
+
+    return h, fmm_tree;
 end
+#----------------------------------------------------------------

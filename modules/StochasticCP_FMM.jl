@@ -226,8 +226,11 @@ module StochasticCP_FMM
 
             C0 = copy(C);
 
-            # compute the gradient with FMM
-            G = D - expected_degree(C, coords, CoM2, dist, od, bt, opt["ratio"])
+            # compute the expected degree with fmm;
+            epd, fmm_tree = expected_degree(C, coords, CoM2, dist, od, bt, opt["ratio"]);
+
+            # compute the gradient
+            G = D - epd;
 
             # update the core score
             C = C + 0.5*G*opt["step_size"] + (rand(n)*2-1)*opt["step_size"]*0.0;
