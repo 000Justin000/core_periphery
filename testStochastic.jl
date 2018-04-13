@@ -106,7 +106,7 @@ function dist_earth(coord1, coord2)
     haversine = sin(dlat/2)^2 + cos(lat1)*cos(lat2)*sin(dlon/2)^2;
     d12 = 6371e3 * (2 * atan2(sqrt(haversine), sqrt(1-haversine)));
 
-    return d12
+    return d12;
 end
 #----------------------------------------------------------------
 
@@ -130,13 +130,13 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function Haversine_matrix(coords)
-    n = size(coords,1);
+function Haversine_matrix(coordinates)
+    n = size(coordinates,1);
     D = zeros(n,n);
 
     for j in 1:n
         for i in j+1:n
-            D[i,j] = haversine(flipdim(coords[i],1), flipdim(coords[j],1), 6371e3)
+            D[i,j] = haversine(flipdim(coordinates[i],1), flipdim(coordinates[j],1), 6371e3)
         end
     end
 
@@ -505,8 +505,8 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     #--------------------------------
     # load fungals data
     #--------------------------------
-#   data = MAT.matread("data/fungal_networks/Conductance/Ag_M_I+4R_U_N_42d_1.mat");
-    data = MAT.matread("data/fungal_networks/Conductance/Pv_M_5xI_U_N_35d_1.mat");
+    data = MAT.matread("data/fungal_networks/Conductance/Ag_M_I+4R_U_N_42d_1.mat");
+#   data = MAT.matread("data/fungal_networks/Conductance/Pv_M_5xI_U_N_35d_1.mat");
     coords = data["coordinates"]';
     A = spones(data["A"]);
     #--------------------------------
@@ -522,8 +522,8 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     #--------------------------------
     if (dist_opt >= 0)
         D = Euclidean_matrix(coordinates).^dist_opt;
-        # C = StochasticCP.model_fit(A, D; opt=opt);
-        C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
+        C = StochasticCP.model_fit(A, D; opt=opt);
+        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
         B = StochasticCP.model_gen(C, D);
     elseif (dist_opt == -1)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));

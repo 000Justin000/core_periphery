@@ -3,6 +3,7 @@ module StochasticCP_FMM
     using StatsBase;
     using Distances;
     using NearestNeighbors;
+#   using Plots; pyplot();
 
     export model_fit, model_gen
 
@@ -210,8 +211,9 @@ module StochasticCP_FMM
         @assert issymmetric(A);
         A = spones(A);
         n = size(A,1);
-        D = vec(sum(A,2));
-        C = D / maximum(D) * 1.0e-6;
+        d = vec(sum(A,2));
+        order = sortperm(d, rev=true);
+        C = d / maximum(d) * 1.0e-6;
 
         converged = false;
         num_step = 0;
@@ -220,6 +222,9 @@ module StochasticCP_FMM
 
         dist = Dict{Int64,Array{Float64,1}}()
         bt = BallTree(coords, metric, leafsize=1);
+
+        delta_C = 0.0;
+        step_size = opt["step_size"];
 
         while(!converged && num_step < opt["max_num_step"])
             num_step += 1;
@@ -230,15 +235,23 @@ module StochasticCP_FMM
             epd, fmm_tree = expected_degree(C, coords, CoM2, dist, od, bt, opt["ratio"]);
 
             # compute the gradient
-            G = D - epd;
+            G = d - epd;
+
+#           h = plot(C[order]);
+#           display(h);
 
             # update the core score
-            C = C + 0.5*G*opt["step_size"] + (rand(n)*2-1)*opt["step_size"]*0.0;
+            C = C + 0.5 * G * step_size + (rand(n)*2-1) * step_size * 0.0;
 
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
             else
-                println(num_step, ": ", norm(C-C0)/norm(C));
+                if (norm(C-C0)/norm(C) > delta_C)
+                    step_size *= 0.9;
+                end
+                delta_C = norm(C-C0)/norm(C);
+
+                println(num_step, ": ", delta_C);
             end
 
             if (num_step > 0.9 * opt["max_num_step"] - 1)
