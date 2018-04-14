@@ -82,8 +82,6 @@ module StochasticCP
 #           h = plot(C[order]);
 #           display(h);
 
-            # println(C[1:5]);
-
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
             else
