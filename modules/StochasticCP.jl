@@ -12,7 +12,7 @@ module StochasticCP
         @assert issymmetric(D);
 
         rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D);
-        rho = rho - spdiagm(diag(rho));
+        rho = rho - diagm(diag(rho));
 
         @assert issymmetric(rho);
 

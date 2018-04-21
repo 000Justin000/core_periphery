@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import urllib.request
 import urllib.parse
 
+# given the name of the tubestation, output a string that is part of the url of the wikipedia page
 def process_name(line, extension, note_at_end=True):
     #--------------------------------------------------
     station = line.replace("\n", "").replace(" ", "_");
@@ -26,6 +27,7 @@ if __name__ == "__main__":
     coords = [];
     f = open("station.names");
     for line in f.readlines():
+        # the wiki page could be under different names, therefore try different possibilities
         try:
             req = urllib.request.Request(url + process_name(line, "_tube_station", True), headers=headers)
             dat = urllib.request.urlopen(req).read()
@@ -52,8 +54,12 @@ if __name__ == "__main__":
                             except:
                                 raise Exception("can not find a wikipedia page for " + line)
     
+        # create a BeautifulSoup object, with the html file
         soup = BeautifulSoup(dat, "lxml")
+
+        # the keywords we are looking for is "geo" 
         coord = soup.find_all("span", class_="geo")
+
         if (len(coord) == 0):
             raise Exception("can not find coordinates for " + line)
         else:

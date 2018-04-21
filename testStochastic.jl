@@ -67,12 +67,22 @@ end
 
 #----------------------------------------------------------------
 function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
+    if (m1 == 0.0 && m2 == 0.0)
+        m1 = 1.0;
+        m2 = 1.0;
+    end
+
     return [(coord1[1]*m1+coord2[1]*m2)/(m1+m2), (coord1[2]*m1+coord2[2]*m2)/(m1+m2)];
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function Haversine_CoM2(coord1, coord2, m1=1.0, m2=1.0)
+    if (m1 == 0.0 && m2 == 0.0)
+        m1 = 1.0;
+        m2 = 1.0;
+    end
+
     lon1 = coord1[1]/180*pi
     lat1 = coord1[2]/180*pi
     lon2 = coord2[1]/180*pi
@@ -90,6 +100,12 @@ function Haversine_CoM2(coord1, coord2, m1=1.0, m2=1.0)
     lat = atan2(z,hyp)
 
     return [lon/pi*180, lat/pi*180]
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function Hamming_CoM2(coord1, coord2, m1=1.0, m2=1.0)
+    return m1 >= m2 ? coord1 : coord2;
 end
 #----------------------------------------------------------------
 
@@ -137,6 +153,25 @@ function Haversine_matrix(coordinates)
     for j in 1:n
         for i in j+1:n
             D[i,j] = haversine(flipdim(coordinates[i],1), flipdim(coordinates[j],1), 6371e3)
+        end
+    end
+
+    D = D + D';
+
+    @assert issymmetric(D);
+
+    return D;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function Hamming_matrix(coordinates)
+    n = size(coordinates,1);
+    D = zeros(n,n);
+
+    for j in 1:n
+        for i in j+1:n
+            D[i,j] = hamming(coordinates[i], coordinates[j]);
         end
     end
 
@@ -523,6 +558,8 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     if (dist_opt >= 0)
         D = Euclidean_matrix(coordinates).^dist_opt;
         C = StochasticCP.model_fit(A, D; opt=opt);
+        println(C)
+        # C = StochasticCP_SGD.model_fit(A, D; opt=opt);
         # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
         B = StochasticCP.model_gen(C, D);
     elseif (dist_opt == -1)
@@ -552,6 +589,60 @@ function plot_mushroom(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
+#----------------------------------------------------------------
+function test_facebook(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+    #--------------------------------
+    # load facebook100 data
+    #--------------------------------
+    data = MAT.matread("data/facebook100/Cornell5.mat");
+    A = spones(data["A"]);
+    @assert issymmetric(A);
+    #--------------------------------
+    n = size(A,1);
+    coords = vcat(convert(Array{Float64,2}, reshape(collect(1:n), (1,n))), data["local_info"]');
+    #--------------------------------
+
+    coordinates = [[coords[i,j] for i in 1:8] for j in 1:size(coords,2)];
+
+    opt = Dict()
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["step_size"] = step_size;
+    opt["max_num_step"] = max_num_step;
+
+    #--------------------------------
+    if (dist_opt >= 0)
+        D = Hamming_matrix(coordinates).^dist_opt;
+        C = StochasticCP_SGD.model_fit(A, D; opt=opt);
+        # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D);
+    elseif (dist_opt == -1)
+        D = rank_distance_matrix(Hamming_matrix(coordinates));
+        C = StochasticCP.model_fit(A, D; opt=opt);
+        B = StochasticCP.model_gen(C, D);
+    else
+        error("distance_option not supported");
+    end
+
+    return A, B, C, Hamming_matrix(coordinates), coordinates
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_facebook(A, C, coords, option="degree", filename="output")
+    h = plot(size=(1200,650), title="Facebook",
+                              xlabel=L"major",
+                              ylabel=L"year");
+
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+                        plot_links=true,
+                        distance="Euclidean")
+
+    savefig(h, "results/" * filename * ".pdf");
+    return h;
+end
+#----------------------------------------------------------------
+
 
 #----------------------------------------------------------------
 function check(C, D, coordinates, metric, CoM2, dist_opt, ratio)
@@ -561,7 +652,7 @@ function check(C, D, coordinates, metric, CoM2, dist_opt, ratio)
     epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^dist_opt), 1));
     epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, dist_opt, bt, ratio);
 
-    order = sortperm(epd_real, rev=false);
+    order = sortperm(C, rev=false);
     h = plot(epd_real[order]);
     plot!(h, epd[order]);
     plot!(h, epd[order] - epd_real[order]);

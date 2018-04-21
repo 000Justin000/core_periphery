@@ -25,11 +25,31 @@ module StochasticCP_FMM
         if (idx > bt.tree_data.n_internal_nodes)
             cmp[idx] = Particle(convert(Vector{Float64}, bt.hyper_spheres[idx].center), ms[roid[srid[idx]]], 0.0)
         else
-            fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2)
-            fill_cm!(cmp, idx*2+1, bt, ms, roid, srid, CoM2)
-
-            cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m), cmp[idx*2].m + cmp[idx*2+1].m, 0.0)
+            if (idx*2+1 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs)
+                fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2);
+                fill_cm!(cmp, idx*2+1, bt, ms, roid, srid, CoM2);
+                cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m), cmp[idx*2].m + cmp[idx*2+1].m, 0.0);
+            elseif (idx*2 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs)
+                fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2);
+                cmp[idx] = Particle(cmp[idx*2].CoM, cmp[idx*2].m, cmp[idx*2].pot);
+            end
         end
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    function subtree_size(idx, n)
+        p = floor(log(n)/log(2)) - floor(log(idx)/log(2));
+
+        if (2^p * idx + 2^p - 1 <= n)
+            size = 2^(p+1) - 1;
+        elseif (2^p * idx <= n)
+            size = (2^p - 1) + (n - 2^p * idx + 1);
+        else
+            size = (2^p - 1);
+        end
+
+        return size;
     end
     #-----------------------------------------------------------------------------
 
@@ -37,19 +57,21 @@ module StochasticCP_FMM
     # compute the potential between two nodes
     #-----------------------------------------------------------------------------
     function fill_p2!(cmp, idx_1, idx_2, bt, od)
-        if ((idx_1 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs) &&
-            (idx_2 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs))
+        n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
+        if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
             distance = evaluate(bt.metric, bt.hyper_spheres[idx_1].center, bt.hyper_spheres[idx_2].center)
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
-            if (distance >= 2*(sp1r + sp2r))
+            if (distance >= max(od,2)*(sp1r + sp2r))
                 if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                     cmp[idx_1].pot += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^od);
                     cmp[idx_2].pot += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^od);
                 else
-                    cmp[idx_1].pot += cmp[idx_2].m / distance^od;
-                    cmp[idx_2].pot += cmp[idx_1].m / distance^od;
+                    cmp[idx_1].pot += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^od);
+                    cmp[idx_2].pot += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^od);
+#                   cmp[idx_1].pot += cmp[idx_2].m / distance^od;
+#                   cmp[idx_2].pot += cmp[idx_1].m / distance^od;
                 end
                 cmp[end].pot += 1
             elseif (sp1r <= sp2r)
@@ -158,12 +180,14 @@ module StochasticCP_FMM
             ms[cid] = 0
         end
         #-------------------------------------------------------------------------
+
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2)
         fill_p!(fmm_tree, 1, bt, od)
         accumulate_p!(fmm_tree, 1, bt)
         #-------------------------------------------------------------------------
         epd += [fmm_tree[rsid[orid[idx]]].pot for idx in 1:nl] .* exp.(C)
         #-------------------------------------------------------------------------
+
 
         #-------------------------------------------------------------------------
         # replace with the (stored) exact expected degree for core nodes
