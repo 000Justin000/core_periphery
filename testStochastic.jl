@@ -11,59 +11,59 @@ using Distances;
 using Plots; pyplot();
 using LaTeXStrings;
 
-#----------------------------------------------------------------
-function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
-    crs = [];
-    for k in klist
-        #--------------------------------------------------------
-        # A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
-        #--------------------------------------------------------
-        cr = 0;
-        #--------------------------------------------------------
-        for itr in 1:repeat
-            A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
-            C   = StochasticCP.model_fit(A);
-            od  = sortperm(C, rev=true);
-            cr += (1/repeat) * sum([i<=n*cratio ? 1 : 0 for i in od[1:Int(n*cratio)]])/(n*cratio);
-        end
-        #--------------------------------------------------------
-        push!(crs, cr);
-        #--------------------------------------------------------
-    end
-    plot(klist, crs);
-end
-#----------------------------------------------------------------
-
-#----------------------------------------------------------------
-function test_lattice(n)
-    A = NetworkGen.periodic_lattice(n,n);
-    C = StochasticCP.model_fit(A);
-
-    plot(C);
-end
-#----------------------------------------------------------------
-
-#----------------------------------------------------------------
-function test_reachability()
-    data = MAT.matread("data/benson/reachability.mat");
-
-    od = sortperm(vec(data["populations"]), rev=true);
-    data["A"]           = data["A"][od,od]
-    data["labels"]      = data["labels"][od]
-    data["latitude"]    = data["latitude"][od]
-    data["longitude"]   = data["longitude"][od]
-    data["populations"] = data["populations"][od]
-
-    A  = spones(data["A"]);
-    W0 = Motif.Me1(A);
-    C  = StochasticCP.model_fit(W0);
-    W1 = StochasticCP.model_gen(C);
-
-    plot(C);
-
-    return W0, W1, data;
-end
-#----------------------------------------------------------------
+# #----------------------------------------------------------------
+# function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
+#     crs = [];
+#     for k in klist
+#         #--------------------------------------------------------
+#         # A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
+#         #--------------------------------------------------------
+#         cr = 0;
+#         #--------------------------------------------------------
+#         for itr in 1:repeat
+#             A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
+#             C   = StochasticCP.model_fit(A);
+#             od  = sortperm(C, rev=true);
+#             cr += (1/repeat) * sum([i<=n*cratio ? 1 : 0 for i in od[1:Int(n*cratio)]])/(n*cratio);
+#         end
+#         #--------------------------------------------------------
+#         push!(crs, cr);
+#         #--------------------------------------------------------
+#     end
+#     plot(klist, crs);
+# end
+# #----------------------------------------------------------------
+#
+# #----------------------------------------------------------------
+# function test_lattice(n)
+#     A = NetworkGen.periodic_lattice(n,n);
+#     C = StochasticCP.model_fit(A);
+#
+#     plot(C);
+# end
+# #----------------------------------------------------------------
+#
+# #----------------------------------------------------------------
+# function test_reachability()
+#     data = MAT.matread("data/benson/reachability.mat");
+#
+#     od = sortperm(vec(data["populations"]), rev=true);
+#     data["A"]           = data["A"][od,od]
+#     data["labels"]      = data["labels"][od]
+#     data["latitude"]    = data["latitude"][od]
+#     data["longitude"]   = data["longitude"][od]
+#     data["populations"] = data["populations"][od]
+#
+#     A  = spones(data["A"]);
+#     W0 = Motif.Me1(A);
+#     C  = StochasticCP.model_fit(W0);
+#     W1 = StochasticCP.model_gen(C);
+#
+#     plot(C);
+#
+#     return W0, W1, data;
+# end
+# #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
@@ -191,7 +191,6 @@ function rank_distance_matrix(D)
 
     R = zeros(D);
     for j in 1:n
-        println("rank_distance_matrix: ", j);
         od = sortperm(D[:,j]);
         for i in 2:n
             R[od[i],j] = i-1;
@@ -223,12 +222,12 @@ function plot_core_periphery(h, A, C, coords, option="degree";
 
     if (option == "degree")
         println("option: degree")
-        rk = sortperm(sortperm(D, rev=true))
-        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
+        rk = sortperm(sortperm(D))
+        ms = (rk/n).^20 * 6 + 0.3;
     elseif (option == "core_score")
         println("option: core_score")
-        rk = sortperm(sortperm(C, rev=true))
-        ms = ((rk-1)/n - 1).^20 * 6 + 0.3;
+        rk = sortperm(sortperm(C))
+        ms = (rk/n).^20 * 6 + 0.3;
     else
         error("option not supported.");
     end
@@ -297,18 +296,16 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=ms, c=color, label="");
+    scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], label="");
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_underground(distance_option="no_distance"; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
+function test_underground(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
     data = MAT.matread("data/london_underground/london_underground_clean.mat");
 
     W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
     A = spones(sparse(W));
-
-    D = Haversine_matrix(data["Tube_Locations"]);
 
     opt = Dict()
     opt["ratio"] = ratio;
@@ -316,60 +313,34 @@ function test_underground(distance_option="no_distance"; ratio=1.0, thres=1.0e-6
     opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
-    if (distance_option == "no_distance")
-        C = StochasticCP.model_fit(A; opt=opt);
-        B = StochasticCP.model_gen(C);
-    elseif (distance_option == "distance")
-        C = StochasticCP.model_fit(A, D; opt=opt);
-        B = StochasticCP.model_gen(C, D);
-    elseif (distance_option == "rank_distance")
-        C = StochasticCP.model_fit(A, rank_distance_matrix(D); opt=opt);
-        B = StochasticCP.model_gen(C, rank_distance_matrix(D));
+    if (dist_opt > 0)
+        D = Haversine_matrix(data["Tube_Locations"]);
+        C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D, dist_opt);
+    elseif (dist_opt < 0)
+        D = rank_distance_matrix(Haversine_matrix(data["Tube_Locations"]));
+        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D, -dist_opt);
     else
-        error("distance_option not supported");
+        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
-    return A, B, C, data;
+    return A, B, C, D, data["Tube_Locations"];
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_underground(A, C, data, option="degree", filename="output")
-    @assert issymmetric(A);
-    n = size(A,1);
+function plot_underground(A, C, coords, option="degree", filename="output")
+    h = plot(size=(1200,650), title="London Underground",
+                              xlabel=L"\rm{Latitude} (^\circ)",
+                              ylabel=L"\rm{Longitude}(^\circ)");
 
-    D = vec(sum(A,1));
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+                        plot_links=true,
+                        distance="Haversine")
 
-    if (option == "degree")
-        color = [(i in sortperm(D, rev=true)[1:60] ? colorant"orange" : colorant"blue") for i in 1:n];
-    elseif (option == "core_score")
-        color = [(i in sortperm(C, rev=true)[1:60] ? colorant"orange" : colorant"blue") for i in 1:n];
-    else
-        error("option not supported.");
-    end
-
-    if (option == "degree")
-        ms = D*2;
-    elseif (option == "core_score")
-        ms=(2.^C/maximum(2.^C))*10;
-    else
-        error("option not supported.");
-    end
-
-    coords = data["Tube_Locations"];
-    h = plot(size=(600,400), title="London Underground",
-                             xlabel=L"\rm{Latitude} (^\circ)",
-                             ylabel=L"\rm{Longitude}(^\circ)");
-    for i in 1:n
-        for j in i+1:n
-            if (A[i,j] != 0)
-                h = plot!([coords[i][1], coords[j][1]], [coords[i][2], coords[j][2]], leg=false, color="black", linewidth=1);
-            end
-        end
-    end
-    h = scatter!([coord[1] for coord in coords], [coord[2] for coord in coords], ms=ms, c=color);
     savefig(h, "results/" * filename * ".pdf");
-
     return h;
 end
 #----------------------------------------------------------------
@@ -442,7 +413,6 @@ function hist_distance_rank(arr, b=0:50:6000)
     h = plot!(b[2:end], 26000 * b[2] ./ b[2:end], label=L"$1/\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$", size=(600,400));
 
     savefig(h, "results/air_rank_distance_hist.pdf")
-    # png(h, "results/air_rank_distance_hist")
 
     return h
 end
@@ -503,20 +473,22 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
-    if (dist_opt >= 0)
-        D = Haversine_matrix(coordinates).^dist_opt;
-        # C = StochasticCP.model_fit(A, D; opt=opt);
+    if (dist_opt > 0)
+        D = Haversine_matrix(coordinates);
+        # C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, dist_opt; opt=opt);
         C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D);
-    elseif (dist_opt == -1)
+        B = StochasticCP.model_gen(C, D, dist_opt);
+    elseif (dist_opt < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D; opt=opt);
-        B = StochasticCP.model_gen(C, D);
+        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D, -dist_opt);
     else
-        error("distance_option not supported");
+        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
-    return A, B, C, Haversine_matrix(coordinates), coordinates
+    return A, B, C, D, coordinates
 end
 #----------------------------------------------------------------
 
@@ -555,22 +527,22 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
-    if (dist_opt >= 0)
-        D = Euclidean_matrix(coordinates).^dist_opt;
-        C = StochasticCP.model_fit(A, D; opt=opt);
-        println(C)
-        # C = StochasticCP_SGD.model_fit(A, D; opt=opt);
+    if (dist_opt > 0)
+        D = Euclidean_matrix(coordinates);
+        C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, dist_opt; opt=opt);
         # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D);
-    elseif (dist_opt == -1)
+        B = StochasticCP.model_gen(C, D, dist_opt);
+    elseif (dist_opt < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D; opt=opt);
-        B = StochasticCP.model_gen(C, D);
+        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D, -dist_opt);
     else
-        error("distance_option not supported");
+        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
-    return A, B, C, Euclidean_matrix(coordinates), coordinates
+    return A, B, C, D, coordinates
 end
 #----------------------------------------------------------------
 
@@ -611,17 +583,19 @@ function test_facebook(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
-    if (dist_opt >= 0)
-        D = Hamming_matrix(coordinates).^dist_opt;
-        C = StochasticCP_SGD.model_fit(A, D; opt=opt);
+    if (dist_opt > 0)
+        D = Hamming_matrix(coordinates);
+        C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, dist_opt; opt=opt);
         # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D);
-    elseif (dist_opt == -1)
+        B = StochasticCP.model_gen(C, D, dist_opt);
+    elseif (dist_opt < 0)
         D = rank_distance_matrix(Hamming_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D; opt=opt);
-        B = StochasticCP.model_gen(C, D);
+        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
+        B = StochasticCP.model_gen(C, D, -dist_opt);
     else
-        error("distance_option not supported");
+        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
     return A, B, C, Hamming_matrix(coordinates), coordinates

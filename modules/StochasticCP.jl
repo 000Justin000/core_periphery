@@ -8,10 +8,10 @@ module StochasticCP
     # compute the probability matirx rho_{ij} denote probability for a link to
     # exist between node_i and node_j
     #-----------------------------------------------------------------------------
-    function probability_matrix(C,D=ones(C.*C')-eye(C.*C'))
+    function probability_matrix(C, D, dist_opt)
         @assert issymmetric(D);
 
-        rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D);
+        rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D.^dist_opt);
         rho = rho - diagm(diag(rho));
 
         @assert issymmetric(rho);
@@ -25,13 +25,12 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # theta = \sum_{i<j} A_{ij} \log(rho_{ij}) + (1-A_{ij}) \log(1-rho_{ij})
     #-----------------------------------------------------------------------------
-    function theta(A, C, D=ones(A)-eye(A))
+    function theta(A, C, D, dist_opt)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
         n = size(A,1);
-
-        rho = probability_matrix(C,D)
+        rho = probability_matrix(C,D,dist_opt)
 
         theta = 0;
         for i in 1:n
@@ -48,9 +47,9 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # given the adjacency matrix and distance matrix, compute the core scores
     #-----------------------------------------------------------------------------
-    function model_fit(A, D=ones(A)-eye(A); opt=Dict("thres"=>1.0e-6,
-                                                     "step_size"=>0.01,
-                                                     "max_num_step"=>10000))
+    function model_fit(A, D, dist_opt; opt=Dict("thres"=>1.0e-6,
+                                                "step_size"=>0.01,
+                                                "max_num_step"=>10000))
         @assert issymmetric(A);
         @assert issymmetric(D);
 
@@ -75,7 +74,7 @@ module StochasticCP
             C0 = copy(C);
 
             # compute the gradient
-            G = vec(sum(A-probability_matrix(C,D), 2));
+            G = vec(sum(A-probability_matrix(C,D,dist_opt), 2));
 
             C = C + 0.5 * step_size * G;
 
@@ -102,7 +101,7 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # given the core score and distance matrix, compute the adjacency matrix
     #-----------------------------------------------------------------------------
-    function model_gen(C, D=ones(C.*C')-eye(C.*C'))
+    function model_gen(C, D, dist_opt)
         @assert issymmetric(D);
 
         n = size(C,1);
@@ -110,7 +109,7 @@ module StochasticCP
         A = spzeros(n,n);
         for j in 1:n
             for i in j+1:n
-                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]) ? 1 : 0;
+                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]^dist_opt) ? 1 : 0;
             end
         end
 
