@@ -86,6 +86,8 @@ module StochasticCP
             else
                 if (norm(C-C0)/norm(C) > delta_C)
                     step_size *= 0.9;
+                elseif (norm(C-C0)/norm(C) > 0.97 * delta_C)
+                    step_size *= 0.97;
                 end
                 delta_C = norm(C-C0)/norm(C);
 
