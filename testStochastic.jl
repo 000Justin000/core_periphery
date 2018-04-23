@@ -210,19 +210,19 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     @assert issymmetric(A);
     n = size(A,1);
 
-    D = vec(sum(A,1));
+    d = vec(sum(A,1));
 
     if (option == "degree")
-        color = [(i in sortperm(D, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
-        color = [(i in sortperm(C, rev=true)[1:Int64(ceil(0.1*n))] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     else
         error("option not supported.");
     end
 
     if (option == "degree")
         println("option: degree")
-        rk = sortperm(sortperm(D))
+        rk = sortperm(sortperm(d))
         ms = (rk/n).^20 * 6 + 0.3;
     elseif (option == "core_score")
         println("option: core_score")
@@ -246,7 +246,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                  legend=false,
                                  color="black",
                                  linewidth=0.10,
-                                 alpha=0.15);
+                                 alpha=1.0);
                     end
                     #------------------------------------------------
                 end
@@ -264,7 +264,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=1.00);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -301,7 +301,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_underground(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
+function test_underground(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
     data = MAT.matread("data/london_underground/london_underground_clean.mat");
 
     W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
@@ -313,14 +313,17 @@ function test_underground(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, 
     opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
-    if (dist_opt > 0)
+    #---------------------------------------------------------------------------------------------
+    # if eplison is integer, then fix eplison, otherwise optimize eplison as well as core_score
+    #---------------------------------------------------------------------------------------------
+    if (eplison > 0)
         D = Haversine_matrix(data["Tube_Locations"]);
-        C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, dist_opt);
-    elseif (dist_opt < 0)
+        C = StochasticCP.model_fit(A, D, eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, eplison);
+    elseif (eplison < 0)
         D = rank_distance_matrix(Haversine_matrix(data["Tube_Locations"]));
-        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, -dist_opt);
+        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, -eplison);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -332,9 +335,10 @@ end
 
 #----------------------------------------------------------------
 function plot_underground(A, C, coords, option="degree", filename="output")
-    h = plot(size=(1200,650), title="London Underground",
-                              xlabel=L"\rm{Latitude} (^\circ)",
-                              ylabel=L"\rm{Longitude}(^\circ)");
+    h = plot(size=(450,350), title="London Underground",
+                             xlabel=L"\rm{Longitude}(^\circ)",
+                             ylabel=L"\rm{Latitude}(^\circ)",
+                             framestyle=:box);
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
@@ -420,7 +424,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_openflight(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -473,16 +477,16 @@ function test_openflight(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
-    if (dist_opt > 0)
+    if (eplison > 0)
         D = Haversine_matrix(coordinates);
-        # C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, dist_opt; opt=opt);
-        C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, dist_opt);
-    elseif (dist_opt < 0)
+        # C = StochasticCP.model_fit(A, D, eplison; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, eplison; opt=opt);
+        C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, eplison);
+    elseif (eplison < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, -dist_opt);
+        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, -eplison);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -495,8 +499,9 @@ end
 #----------------------------------------------------------------
 function plot_openflight(A, C, coords, option="degree", filename="output")
     h = plot(size=(1200,650), title="Openflight",
-                              xlabel=L"\rm{Latitude} (^\circ)",
-                              ylabel=L"\rm{Longitude}(^\circ)");
+                              xlabel=L"\rm{Longitude}(^\circ)",
+                              ylabel=L"\rm{Latitude}(^\circ)",
+                              framestyle=:box);
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
@@ -508,7 +513,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_mushroom(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -527,16 +532,16 @@ function test_mushroom(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
-    if (dist_opt > 0)
+    if (eplison > 0)
         D = Euclidean_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, dist_opt; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, dist_opt);
-    elseif (dist_opt < 0)
+        C = StochasticCP.model_fit(A, D, eplison; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, eplison; opt=opt);
+        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, eplison);
+    elseif (eplison < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, -dist_opt);
+        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, -eplison);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -548,11 +553,12 @@ end
 
 #----------------------------------------------------------------
 function plot_mushroom(A, C, coords, option="degree", filename="output")
-    h = plot(size=(1200,650), title="Mushroom",
-                              xlabel=L"x",
-                              ylabel=L"y");
+    h = plot(size=(450,350), title="Mushroom",
+                             xlabel=L"x",
+                             ylabel=L"y",
+                             framestyle=:box);
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+    plot_core_periphery(h, A, C, coords, option;
                         plot_links=true,
                         distance="Euclidean")
 
@@ -562,7 +568,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_facebook(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_facebook(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load facebook100 data
     #--------------------------------
@@ -583,16 +589,16 @@ function test_facebook(dist_opt=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
-    if (dist_opt > 0)
+    if (eplison > 0)
         D = Hamming_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, dist_opt; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, dist_opt; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, dist_opt);
-    elseif (dist_opt < 0)
+        C = StochasticCP.model_fit(A, D, eplison; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, eplison; opt=opt);
+        # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, eplison);
+    elseif (eplison < 0)
         D = rank_distance_matrix(Hamming_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -dist_opt; opt=opt);
-        B = StochasticCP.model_gen(C, D, -dist_opt);
+        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
+        B = StochasticCP.model_gen(C, D, -eplison);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -619,12 +625,12 @@ end
 
 
 #----------------------------------------------------------------
-function check(C, D, coordinates, metric, CoM2, dist_opt, ratio)
+function check(C, D, coordinates, metric, CoM2, eplison, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
-    epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^dist_opt), 1));
-    epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, dist_opt, bt, ratio);
+    epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^eplison), 1));
+    epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, eplison, bt, ratio);
 
     order = sortperm(C, rev=false);
     h = plot(epd_real[order]);

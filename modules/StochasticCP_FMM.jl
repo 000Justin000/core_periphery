@@ -56,30 +56,30 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the potential between two nodes
     #-----------------------------------------------------------------------------
-    function fill_p2!(cmp, idx_1, idx_2, bt, od)
+    function fill_p2!(cmp, idx_1, idx_2, bt, eplison)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
             distance = evaluate(bt.metric, bt.hyper_spheres[idx_1].center, bt.hyper_spheres[idx_2].center)
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
-            if (distance >= max(od,2)*(sp1r + sp2r))
+            if (distance >= max(eplison,2)*(sp1r + sp2r))
                 if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
-                    cmp[idx_1].pot += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^od);
-                    cmp[idx_2].pot += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^od);
+                    cmp[idx_1].pot += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^eplison);
+                    cmp[idx_2].pot += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^eplison);
                 else
-                    cmp[idx_1].pot += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^od);
-                    cmp[idx_2].pot += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^od);
-#                   cmp[idx_1].pot += cmp[idx_2].m / distance^od;
-#                   cmp[idx_2].pot += cmp[idx_1].m / distance^od;
+                    cmp[idx_1].pot += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^eplison);
+                    cmp[idx_2].pot += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^eplison);
+#                   cmp[idx_1].pot += cmp[idx_2].m / distance^eplison;
+#                   cmp[idx_2].pot += cmp[idx_1].m / distance^eplison;
                 end
                 cmp[end].pot += 1
             elseif (sp1r <= sp2r)
-                fill_p2!(cmp, idx_1, idx_2*2,   bt, od)
-                fill_p2!(cmp, idx_1, idx_2*2+1, bt, od)
+                fill_p2!(cmp, idx_1, idx_2*2,   bt, eplison)
+                fill_p2!(cmp, idx_1, idx_2*2+1, bt, eplison)
             else
-                fill_p2!(cmp, idx_1*2,   idx_2, bt, od)
-                fill_p2!(cmp, idx_1*2+1, idx_2, bt, od)
+                fill_p2!(cmp, idx_1*2,   idx_2, bt, eplison)
+                fill_p2!(cmp, idx_1*2+1, idx_2, bt, eplison)
             end
         end
     end
@@ -88,11 +88,11 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # recursively compute the potential at each level of the tree
     #-----------------------------------------------------------------------------
-    function fill_p!(cmp, idx, bt, od)
+    function fill_p!(cmp, idx, bt, eplison)
         if (idx <= bt.tree_data.n_internal_nodes)
-            fill_p2!(cmp, idx*2, idx*2+1, bt, od)
-            fill_p!(cmp,  idx*2,          bt, od)
-            fill_p!(cmp,  idx*2+1,        bt, od)
+            fill_p2!(cmp, idx*2, idx*2+1, bt, eplison)
+            fill_p!(cmp,  idx*2,          bt, eplison)
+            fill_p!(cmp,  idx*2+1,        bt, eplison)
         end
     end
     #-----------------------------------------------------------------------------
@@ -115,7 +115,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function expected_degree(C::Array{Float64,1}, coords, CoM2, dist, od, bt, ratio)
+    function expected_degree(C::Array{Float64,1}, coords, CoM2, dist, eplison, bt, ratio)
         n = length(C)
 
         #-------------------------------------------------------------------------
@@ -145,7 +145,7 @@ module StochasticCP_FMM
                 dist[cid] = dist2cid;
             end
 
-            cid2all = exp.(C[cid] .+ C) ./ (exp.(C[cid] .+ C) .+ dist[cid].^od);
+            cid2all = exp.(C[cid] .+ C) ./ (exp.(C[cid] .+ C) .+ dist[cid].^eplison);
             cid2all[cid] = 0;
             epd += cid2all;
 
@@ -182,12 +182,11 @@ module StochasticCP_FMM
         #-------------------------------------------------------------------------
 
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2)
-        fill_p!(fmm_tree, 1, bt, od)
+        fill_p!(fmm_tree, 1, bt, eplison)
         accumulate_p!(fmm_tree, 1, bt)
         #-------------------------------------------------------------------------
         epd += [fmm_tree[rsid[orid[idx]]].pot for idx in 1:nl] .* exp.(C)
         #-------------------------------------------------------------------------
-
 
         #-------------------------------------------------------------------------
         # replace with the (stored) exact expected degree for core nodes
@@ -201,27 +200,6 @@ module StochasticCP_FMM
     end
     #-----------------------------------------------------------------------------
 
-    #-----------------------------------------------------------------------------
-    # theta = \sum_{i<j} A_{ij} \log(rho_{ij}) + (1-A_{ij}) \log(1-rho_{ij})
-    #-----------------------------------------------------------------------------
-    function theta(A, C, D)
-        @assert issymmetric(A);
-        @assert issymmetric(D);
-
-        n = size(A,1);
-
-        rho = probability_matrix(C,D,1:n)
-
-        theta = 0;
-        for i in 1:n
-            for j in i+1:n
-                theta += A[i,j]*log(rho[i,j]) + (1-A[i,j])*log(1-rho[i,j]);
-            end
-        end
-
-        return theta;
-    end
-    #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
     # given the adjacency matrix and coordinates, compute the core scores
@@ -230,7 +208,7 @@ module StochasticCP_FMM
                        coords::Array{Float64,2},
                        CoM2,
                        metric = Euclidean(),
-                       od = 1;
+                       eplison = 1;
                        opt = Dict("thres"=>1.0e-6, "step_size"=>0.01, "max_num_step"=>10000, "ratio"=>1.0))
         @assert issymmetric(A);
         A = spones(A);
@@ -247,7 +225,7 @@ module StochasticCP_FMM
         dist = Dict{Int64,Array{Float64,1}}()
         bt = BallTree(coords, metric, leafsize=1);
 
-        delta_C = 0.0;
+        delta_C = 1.0;
         step_size = opt["step_size"];
 
         while(!converged && num_step < opt["max_num_step"])
@@ -256,7 +234,7 @@ module StochasticCP_FMM
             C0 = copy(C);
 
             # compute the expected degree with fmm;
-            epd, fmm_tree = expected_degree(C, coords, CoM2, dist, od, bt, opt["ratio"]);
+            epd, fmm_tree = expected_degree(C, coords, CoM2, dist, eplison, bt, opt["ratio"]);
 
             # compute the gradient
             G = d - epd;
@@ -265,15 +243,13 @@ module StochasticCP_FMM
 #           display(h);
 
             # update the core score
-            C = C + 0.5 * G * step_size + (rand(n)*2-1) * step_size * 0.0;
+            C = C + G * step_size + 0.0 * (rand(n)*2-1) * step_size;
 
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
             else
-                if (norm(C-C0)/norm(C) > delta_C)
-                    step_size *= 0.90;
-                elseif (norm(C-C0)/norm(C) > 0.97 * delta_C)
-                    step_size *= 0.97;
+                if (norm(C-C0)/norm(C) > 0.99 * delta_C)
+                    step_size *= 0.99;
                 end
                 delta_C = norm(C-C0)/norm(C);
 
