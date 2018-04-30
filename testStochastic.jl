@@ -301,7 +301,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_underground(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
+function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
     data = MAT.matread("data/london_underground/london_underground_clean.mat");
 
     W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
@@ -314,16 +314,16 @@ function test_underground(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     opt["max_num_step"] = max_num_step;
 
     #---------------------------------------------------------------------------------------------
-    # if eplison is integer, then fix eplison, otherwise optimize eplison as well as core_score
+    # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
     #---------------------------------------------------------------------------------------------
-    if (eplison > 0)
+    if (epsilon > 0)
         D = Haversine_matrix(data["Tube_Locations"]);
-        C = StochasticCP.model_fit(A, D, eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, eplison);
-    elseif (eplison < 0)
+        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+    elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(data["Tube_Locations"]));
-        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, -eplison);
+        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, -epsilon);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -424,7 +424,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_openflight(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -477,16 +477,16 @@ function test_openflight(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, ma
     opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
-    if (eplison > 0)
+    if (epsilon > 0)
         D = Haversine_matrix(coordinates);
-        # C = StochasticCP.model_fit(A, D, eplison; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, eplison; opt=opt);
-        C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, eplison);
-    elseif (eplison < 0)
+        # C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+    elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, -eplison);
+        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, -epsilon);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -513,7 +513,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_mushroom(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -532,16 +532,16 @@ function test_mushroom(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
-    if (eplison > 0)
+    if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, eplison; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, eplison; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, eplison);
-    elseif (eplison < 0)
+        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+    elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, -eplison);
+        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, -epsilon);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -568,7 +568,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_facebook(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load facebook100 data
     #--------------------------------
@@ -589,16 +589,16 @@ function test_facebook(eplison=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
-    if (eplison > 0)
+    if (epsilon > 0)
         D = Hamming_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, eplison; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, eplison; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, eplison);
-    elseif (eplison < 0)
+        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+    elseif (epsilon < 0)
         D = rank_distance_matrix(Hamming_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -eplison; opt=opt);
-        B = StochasticCP.model_gen(C, D, -eplison);
+        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, -epsilon);
     else
         C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
@@ -625,12 +625,12 @@ end
 
 
 #----------------------------------------------------------------
-function check(C, D, coordinates, metric, CoM2, eplison, ratio)
+function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
-    epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^eplison), 1));
-    epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, eplison, bt, ratio);
+    epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^epsilon), 1));
+    epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, epsilon, bt, ratio);
 
     order = sortperm(C, rev=false);
     h = plot(epd_real[order]);

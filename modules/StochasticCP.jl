@@ -8,10 +8,10 @@ module StochasticCP
     # compute the probability matirx rho_{ij} denote probability for a link to
     # exist between node_i and node_j
     #-----------------------------------------------------------------------------
-    function probability_matrix(C, D, eplison)
+    function probability_matrix(C, D, epsilon)
         @assert issymmetric(D);
 
-        rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D.^eplison);
+        rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D.^epsilon);
         rho = rho - diagm(diag(rho));
 
         @assert issymmetric(rho);
@@ -25,12 +25,12 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # theta = \sum_{i<j} A_{ij} \log(rho_{ij}) + (1-A_{ij}) \log(1-rho_{ij})
     #-----------------------------------------------------------------------------
-    function theta(A, C, D, eplison)
+    function theta(A, C, D, epsilon)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
         n = size(A,1);
-        rho = probability_matrix(C,D,eplison)
+        rho = probability_matrix(C,D,epsilon)
 
         theta = 0;
         for i in 1:n
@@ -47,9 +47,9 @@ module StochasticCP
     #---------------------------------------------------------------------------------------------
     # given the adjacency matrix and distance matrix, compute the core scores
     #---------------------------------------------------------------------------------------------
-    # if eplison is integer, then fix eplison, otherwise optimize eplison as well as core_score
+    # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
     #---------------------------------------------------------------------------------------------
-    function model_fit(A, D, eplison; opt=Dict("thres"=>1.0e-6,
+    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6,
                                                 "step_size"=>0.01,
                                                 "max_num_step"=>10000))
         @assert issymmetric(A);
@@ -75,13 +75,13 @@ module StochasticCP
             C0 = copy(C);
 
             # compute the gradient
-            G = vec(sum(A-probability_matrix(C,D,eplison), 2));
+            G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
 
             C = C + step_size * G;
 
-            if (typeof(eplison) <: AbstractFloat)
-                gradient = 1.0e-2 * step_size * eplison_gradient(A,C,D,eplison);
-                eplison += abs(gradient) < step_size ? gradient : sign(gradient) * step_size;
+            if (typeof(epsilon) <: AbstractFloat)
+                eps_grd  = 1.0e-2 * step_size * epsilon_gradient(A,C,D,epsilon);
+                epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
             end
 
 #           h = plot(C[order]);
@@ -95,11 +95,11 @@ module StochasticCP
                 end
                 delta_C = norm(C-C0)/norm(C);
 
-                println(num_step, ": ", eplison, "  ", step_size, "  ", gradient, "  ", delta_C);
+                println(num_step, ": ", epsilon, "  ", step_size, "  ", eps_grd, "  ", delta_C);
             end
         end
 
-        println(theta(A,C,D,eplison));
+        println(theta(A,C,D,epsilon));
         return C;
     end
     #-----------------------------------------------------------------------------
@@ -108,13 +108,13 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # compute the gradient with respect to the order of distance
     #-----------------------------------------------------------------------------
-    function eplison_gradient(A, C, D, eplison)
+    function epsilon_gradient(A, C, D, epsilon)
         @assert issymmetric(A);
         @assert issymmetric(D);
         @assert sum(abs.(diag(D))) == 0;
 
-        rho = probability_matrix(C,D,eplison);
-        dep = -rho.^2 .* exp.(-(C .+ C')) .* log.(D + eye(D)) .* D.^eplison;
+        rho = probability_matrix(C,D,epsilon);
+        dep = -rho.^2 .* exp.(-(C .+ C')) .* log.(D + eye(D)) .* D.^epsilon;
 
         n = size(A,1);
 
@@ -122,16 +122,16 @@ module StochasticCP
 
 
         #-----------------------------------------------------------------------------
-        eplison_gradient = 0;
+        epsilon_gradient = 0;
         #-----------------------------------------------------------------------------
         for i in 1:n
             for j in i+1:n
-                eplison_gradient += (A[i,j]/rho[i,j] - (1-A[i,j])/(1-rho[i,j])) * dep[i,j];
+                epsilon_gradient += (A[i,j]/rho[i,j] - (1-A[i,j])/(1-rho[i,j])) * dep[i,j];
             end
         end
         #-----------------------------------------------------------------------------
 
-        return eplison_gradient;
+        return epsilon_gradient;
     end
     #-----------------------------------------------------------------------------
 
@@ -139,7 +139,7 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # given the core score and distance matrix, compute the adjacency matrix
     #-----------------------------------------------------------------------------
-    function model_gen(C, D, eplison)
+    function model_gen(C, D, epsilon)
         @assert issymmetric(D);
 
         n = size(C,1);
@@ -147,7 +147,7 @@ module StochasticCP
         A = spzeros(n,n);
         for j in 1:n
             for i in j+1:n
-                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]^eplison) ? 1 : 0;
+                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]^epsilon) ? 1 : 0;
             end
         end
 
