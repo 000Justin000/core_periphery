@@ -264,7 +264,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.15);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -498,10 +498,10 @@ end
 
 #----------------------------------------------------------------
 function plot_openflight(A, C, coords, option="degree", filename="output")
-    h = plot(size=(1200,650), title="Openflight",
-                              xlabel=L"\rm{Longitude}(^\circ)",
-                              ylabel=L"\rm{Latitude}(^\circ)",
-                              framestyle=:box);
+    h = plot(size=(800,450), title="Openflight",
+                             xlabel=L"\rm{Longitude}(^\circ)",
+                             ylabel=L"\rm{Latitude}(^\circ)",
+                             framestyle=:box);
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
