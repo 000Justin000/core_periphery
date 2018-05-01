@@ -534,9 +534,9 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
@@ -629,7 +629,7 @@ function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
-    epd_real = vec(sum(StochasticCP.probability_matrix(C, D.^epsilon), 1));
+    epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
     epd, fmm_tree = StochasticCP_FMM.expected_degree(C, coords, CoM2, dist, epsilon, bt, ratio);
 
     order = sortperm(C, rev=false);

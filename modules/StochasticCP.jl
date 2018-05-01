@@ -60,8 +60,6 @@ module StochasticCP
         d = vec(sum(A,2));
         order = sortperm(d, rev=true);
         C = d / maximum(d) * 1.0e-6;
-        # C = rand(n);
-        # C = 0.5 * ones(n) * log((sum(A)/n^2)/(1 - sum(A)/n^2) * median(D));
 
         #-----------------------------------------------------------------------------
         # \sum_{ij in E} -log_Dij
@@ -78,7 +76,6 @@ module StochasticCP
             #---------------------------------------------------------------------
         end
         #-----------------------------------------------------------------------------
-        println("sum_logD_inE: ", sum_logD_inE);
 
         converged = false;
         num_step = 0;
@@ -93,11 +90,14 @@ module StochasticCP
             # compute the gradient
             G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
 
+            # update the core score
             C = C + step_size * G;
 
             if (typeof(epsilon) <: AbstractFloat)
                 eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + sum_rho_logD(A,C,D,epsilon));
-                epsilon   += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
+                epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
+            else
+                eps_grd  = 0.0;
             end
 
 #           h = plot(C[order]);
@@ -141,7 +141,6 @@ module StochasticCP
             end
         end
         #-----------------------------------------------------------------------------
-        println("sum_rho_logD: ", sum_rho_logD);
 
         return sum_rho_logD;
     end
