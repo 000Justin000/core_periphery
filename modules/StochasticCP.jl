@@ -94,10 +94,13 @@ module StochasticCP
             C = C + step_size * G;
 
             if (typeof(epsilon) <: AbstractFloat)
-                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + sum_rho_logD(A,C,D,epsilon));
+                srd = sum_rho_logD(C0,D,epsilon);
+                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
                 epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
             else
                 eps_grd  = 0.0;
+                sum_logD_inE = 0.0;
+                srd = 0.0;
             end
 
 #           h = plot(C[order]);
@@ -111,7 +114,8 @@ module StochasticCP
                 end
                 delta_C = norm(C-C0)/norm(C);
 
-                println(num_step, ": ", epsilon, "  ", step_size, "  ", eps_grd, "  ", delta_C);
+                @printf("%5d: %6.3f, %10.5e, %10.5e, %10.5e, %10.5e, %10.5e\n",
+                         num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
             end
         end
 
@@ -120,32 +124,36 @@ module StochasticCP
     end
     #-----------------------------------------------------------------------------
 
-
     #-----------------------------------------------------------------------------
     # compute the gradient with respect to the order of distance
     #-----------------------------------------------------------------------------
-    function sum_rho_logD(A, C, D, epsilon)
-        @assert issymmetric(A);
+    function sum_rho_logD(C, D, epsilon)
         @assert issymmetric(D);
         @assert sum(abs.(diag(D))) == 0;
 
-        n = size(A,1);
+        n = length(C);
         rho = probability_matrix(C,D,epsilon);
 
         #-----------------------------------------------------------------------------
         sum_rho_logD = 0.0;
         #-----------------------------------------------------------------------------
         for i in 1:n
-            for j in i+1:n
-                sum_rho_logD += rho[i,j] * log(D[i,j]);
+            for j in 1:n
+                if (i != j)
+                    sum_rho_logD += rho[i,j] * log(D[i,j]);
+                end
             end
+#           if (i in 1:1)
+#               println(sum_rho_logD);
+#               println(D[i,1:5]);
+#               println(C[1:5]);
+#           end
         end
         #-----------------------------------------------------------------------------
 
-        return sum_rho_logD;
+        return sum_rho_logD/2.0;
     end
     #-----------------------------------------------------------------------------
-
 
     #-----------------------------------------------------------------------------
     # given the core score and distance matrix, compute the adjacency matrix
