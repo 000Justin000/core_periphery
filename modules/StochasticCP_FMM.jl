@@ -66,7 +66,7 @@ module StochasticCP_FMM
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
-            if (distance >= max(epsilon,2)*(sp1r + sp2r) + 1)
+            if (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
 #           if ((sp1r + sp2r) < 1.0e-12)
                 #-----------------------------------------------------------------
                 if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
@@ -276,7 +276,7 @@ module StochasticCP_FMM
 
             if (typeof(epsilon) <: AbstractFloat)
                 eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
-                epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
+                epsilon += abs(eps_grd) < 0.2*step_size ? eps_grd : sign(eps_grd) * 0.2*step_size;
             else
                 eps_grd  = 0.0;
                 sum_logD_inE = 0.0;
@@ -294,7 +294,7 @@ module StochasticCP_FMM
                 end
                 delta_C = norm(C-C0)/norm(C);
 
-                @printf("%5d: %6.3f, %10.5e, %10.5e, %10.5e, %10.5e, %10.5e\n",
+                @printf("%5d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
                          num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
             end
 

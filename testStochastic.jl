@@ -534,9 +534,9 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
@@ -637,6 +637,6 @@ function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     plot!(h, epd[order]);
     plot!(h, epd[order] - epd_real[order]);
 
-    return h, fmm_tree;
+    return h, epd, srd, fmm_tree;
 end
 #----------------------------------------------------------------
