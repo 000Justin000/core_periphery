@@ -37,7 +37,7 @@ using LaTeXStrings;
 # #----------------------------------------------------------------
 # function test_lattice(n)
 #     A = NetworkGen.periodic_lattice(n,n);
-#     C = StochasticCP.model_fit(A);
+#     C, epsilon = StochasticCP.model_fit(A);
 #
 #     plot(C);
 # end
@@ -72,7 +72,7 @@ function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
         m2 = 1.0;
     end
 
-    return [(coord1[1]*m1+coord2[1]*m2)/(m1+m2), (coord1[2]*m1+coord2[2]*m2)/(m1+m2)];
+    return (coord1*m1+coord2*m2)/(m1+m2);
 end
 #----------------------------------------------------------------
 
@@ -235,7 +235,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     #------------------------------------------------------------
     if (plot_links == true)
         #------------------------------------------------------------
-        if (distance == "Euclidean")
+        if (distance == "Euclidean" && length(coords[1]) == 2)
             #--------------------------------------------------------
             for i in 1:n
                 for j in i+1:n
@@ -246,7 +246,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                  legend=false,
                                  color="black",
                                  linewidth=0.10,
-                                 alpha=1.0);
+                                 alpha=1.00);
                     end
                     #------------------------------------------------
                 end
@@ -318,14 +318,14 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     #---------------------------------------------------------------------------------------------
     if (epsilon > 0)
         D = Haversine_matrix(data["Tube_Locations"]);
-        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(data["Tube_Locations"]));
-        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, -epsilon);
+        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
@@ -479,16 +479,16 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, ma
 
     if (epsilon > 0)
         D = Haversine_matrix(coordinates);
-        # C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        C = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, -epsilon);
+        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
@@ -534,16 +534,16 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-        # C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        C = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, -epsilon);
+        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
@@ -568,11 +568,67 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
+function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+    #--------------------------------
+    # load fungals data
+    #--------------------------------
+    data = MAT.matread("data/celegans/celegans277.mat");
+#   data = MAT.matread("data/fungal_networks/Conductance/Pv_M_5xI_U_N_35d_1.mat");
+    coords = data["celegans277positions"]';
+    A = spones(sparse(data["celegans277matrix"] + data["celegans277matrix"]'));
+    #--------------------------------
+
+    coordinates = [[coords[1,i], coords[2,i]] for i in 1:size(coords,2)];
+
+    opt = Dict()
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["step_size"] = step_size;
+    opt["max_num_step"] = max_num_step;
+
+    #--------------------------------
+    if (epsilon > 0)
+        D = Euclidean_matrix(coordinates);
+        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        # C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+    elseif (epsilon < 0)
+        D = rank_distance_matrix(Euclidean_matrix(coordinates));
+        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+    else
+        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
+    end
+
+    return A, B, C, D, coordinates
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_celegans(A, C, coords, option="degree", filename="output")
+    h = plot(size=(450,350), title="Celegans",
+                             xlabel=L"x",
+                             ylabel=L"y",
+                             framestyle=:box);
+
+    plot_core_periphery(h, A, C, coords, option;
+                        plot_links=true,
+                        distance="Euclidean")
+
+    savefig(h, "results/" * filename * ".pdf");
+    return h;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
 function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
     #--------------------------------
     # load facebook100 data
     #--------------------------------
-    data = MAT.matread("data/facebook100/Cornell5.mat");
+#   data = MAT.matread("data/facebook100/Cornell5.mat");
+    data = MAT.matread("data/facebook100/Caltech36.mat");
     A = spones(data["A"]);
     @assert issymmetric(A);
     #--------------------------------
@@ -591,30 +647,31 @@ function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     #--------------------------------
     if (epsilon > 0)
         D = Hamming_matrix(coordinates);
-        C = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # C = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        # C = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
+        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        # C, epsilon = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Hamming_matrix(coordinates));
-        C = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, -epsilon);
+        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
+        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
         B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
     end
 
-    return A, B, C, Hamming_matrix(coordinates), coordinates
+    return A, B, C, D, coordinates
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function plot_facebook(A, C, coords, option="degree", filename="output")
-    h = plot(size=(1200,650), title="Facebook",
-                              xlabel=L"major",
-                              ylabel=L"year");
+    h = plot(size=(600,600), title="Facebook",
+                               xlabel=L"status",
+                               ylabel=L"year");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+    plot_core_periphery(h, A, C, [[(coord[2] >=    0 ? coord[2] :    0) + (rand()-0.5)*0.3,
+                                   (coord[7] >= 1999 ? coord[7] : 1999) + (rand()-0.5)*0.3] for coord in coords], option;
                         plot_links=true,
                         distance="Euclidean")
 

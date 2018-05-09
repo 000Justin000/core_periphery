@@ -1,0 +1,54 @@
+function [Y]= artcore(n,C,p,k,f)
+
+Y1(1:f)=0;
+C=round(C*n);
+
+for h=1:f
+    h
+    N(1:n,1:n)=0;
+    for i=1:C
+        for j=1:(i-1)
+            if rand<p*k^2
+                N(i,j)=1;
+                N(j,i)=1;
+            end
+        end
+        for j=(C+1):n
+            if rand<p*k
+                N(i,j)=1;
+                N(j,i)=1;
+            end
+        end
+    end
+    for i=(C+1):n
+        for j=(C+1):(i-1)
+            if rand<p*k
+                N(i,j)=1;
+                N(j,i)=1;
+            end
+        end
+    end
+    perm=randperm(n);
+    N=N(perm,perm);
+    x(1:n)=0;
+    for i=1:10
+        for j=1:10
+            X{i,j}=x;
+        end
+    end
+    F(1:10,1:10)=0;
+    for i=1:10
+        for j=1:10
+            [X{i,j},F(i,j)]= corepercont_productnorm(N,i/10,j/10);
+        end
+    end
+    [~,Z] = percentagecore3 (X,F);
+    
+    [~,L]=sort(perm);
+    b=0;
+    b=2*length(intersect(L(1:n/2),Z(1:n/2)));
+    
+    Y1(h)=b/n;
+end
+Y=mean(Y1);
+end

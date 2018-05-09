@@ -95,8 +95,9 @@ module StochasticCP
 
             if (typeof(epsilon) <: AbstractFloat)
                 srd = sum_rho_logD(C0,D,epsilon);
-                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
-                epsilon += abs(eps_grd) < 0.2*step_size ? eps_grd : sign(eps_grd) * 0.2*step_size;
+                eps_grd  = 1.0e-4 * step_size * (sum_logD_inE + srd);
+                epsilon += eps_grd;
+#               epsilon += abs(eps_grd) < 0.2*step_size ? eps_grd : sign(eps_grd) * 0.2*step_size;
             else
                 eps_grd  = 0.0;
                 sum_logD_inE = 0.0;
@@ -109,18 +110,19 @@ module StochasticCP
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
             else
-                if (norm(C-C0)/norm(C) > 0.99 * delta_C)
+                if (norm(C-C0)/norm(C) > 1.01 * delta_C)
                     step_size *= 0.99;
                 end
                 delta_C = norm(C-C0)/norm(C);
 
-                @printf("%d5: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
+                @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
                         num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
             end
         end
 
         println(theta(A,C,D,epsilon));
-        return C;
+        @assert epsilon > 0;
+        return C, epsilon;
     end
     #-----------------------------------------------------------------------------
 

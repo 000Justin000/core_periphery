@@ -1,0 +1,20 @@
+function [Y] = runPuck(A)
+
+% load rezPuckFin
+% return
+
+save firstExamplePuck A
+for a=1:100
+    for b=1:100
+          disp([a b])  
+        [X{a,b},R(a,b)]=corepercontsharp_productnorm(A,a/100,b/100);
+    end
+end
+
+save rezPuck X R A
+
+[Y,Ysorted]=percentagecore3(X,R)
+
+save rezPuckFin X R A Y Ysorted
+
+end

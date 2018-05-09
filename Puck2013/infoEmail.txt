@@ -1,0 +1,18 @@
+Hi Mihai,
+
+I'm sorry for the slow reply. I really need to catch up with this discussion. I have attached all the latest version of the codes. We've been using a sharp function as for some reason it seems to give slightly better results with the artificial cores.
+
+The way to call the functions would be
+
+for a=1:100
+for a=1:100
+[X{i,j},R(i,j)]=corepercontsharp_productnorm(A,a/100,b/100)
+end
+end
+[Y,Y1]=percentagecore3(X,R)
+
+where A is your adjacency matrix, X is a structure that contains the scores per combination of alpa and beta, Y is the list of scores per node and Y1 is a list of the nodes in (reverse) order of core score.
+
+I also attached artcore. It takes as input n, the number of nodes in your artificial graph, C, the proportion that you want to be in the core, p, the base probability, k, the multiplication factor of the probabilities (periphery-periphery edge probability is p, periphery-core is k*p, and core-core is k*k*p), and then f is the number of repeated calculations that is averaged over. The output is the average number of correctly guessed nodes. The core-calculation method is in there somewhere but you can replace that with another one, as long as it gives Z as the nodes ordered in reverse order of score. Let me know if that one makes any sense.
+
+Best wishes,  Puck

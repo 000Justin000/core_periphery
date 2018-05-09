@@ -275,8 +275,9 @@ module StochasticCP_FMM
             C = C + G * step_size + 0.0 * (rand(n)*2-1) * step_size;
 
             if (typeof(epsilon) <: AbstractFloat)
-                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
-                epsilon += abs(eps_grd) < 0.2*step_size ? eps_grd : sign(eps_grd) * 0.2*step_size;
+                eps_grd  = 1.0e-5 * step_size * (sum_logD_inE + srd);
+                epsilon += eps_grd;
+#               epsilon += abs(eps_grd) < 0.2*step_size ? eps_grd : sign(eps_grd) * 0.2*step_size;
             else
                 eps_grd  = 0.0;
                 sum_logD_inE = 0.0;
@@ -289,12 +290,12 @@ module StochasticCP_FMM
             if (norm(C-C0)/norm(C) < opt["thres"])
                 converged = true;
             else
-                if (norm(C-C0)/norm(C) > 0.99 * delta_C)
+                if (norm(C-C0)/norm(C) > 1.01 * delta_C)
                     step_size *= 0.99;
                 end
                 delta_C = norm(C-C0)/norm(C);
 
-                @printf("%5d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
+                @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
                          num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
             end
 
@@ -305,8 +306,8 @@ module StochasticCP_FMM
         end
 
 #       C = acc_step > 0 ? acc_C/acc_step : C;
-
-        return C;
+        @assert epsilon > 0;
+        return C, epsilon;
     end
     #-----------------------------------------------------------------------------
 
