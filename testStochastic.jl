@@ -213,9 +213,9 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     d = vec(sum(A,1));
 
     if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(d)[end-Int64(ceil(0.15*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(C)[end-Int64(ceil(0.15*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     else
         error("option not supported.");
     end
@@ -223,11 +223,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     if (option == "degree")
         println("option: degree")
         rk = sortperm(sortperm(d))
-        ms = (rk/n).^20 * 6 + 0.3;
+        ms = (rk/n).^2 * 6 + 0.3;
     elseif (option == "core_score")
         println("option: core_score")
         rk = sortperm(sortperm(C))
-        ms = (rk/n).^20 * 6 + 0.3;
+        ms = (rk/n).^2 * 6 + 0.3;
     else
         error("option not supported.");
     end
@@ -264,7 +264,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=1.00);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -276,14 +276,14 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=1.00);
 
                             plot!(h, [coords[max_id][1], 180.0],
                                      [coords[max_id][2], lat_c],
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=1.00);
                         end
                     end
                     #------------------------------------------------

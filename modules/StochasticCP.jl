@@ -95,9 +95,9 @@ module StochasticCP
 
             if (typeof(epsilon) <: AbstractFloat)
                 srd = sum_rho_logD(C0,D,epsilon);
-                eps_grd  = 1.0e-4 * step_size * (sum_logD_inE + srd);
-                epsilon += eps_grd;
-#               epsilon += abs(eps_grd) < 0.2*step_size ? eps_grd : sign(eps_grd) * 0.2*step_size;
+                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
+#               epsilon += eps_grd;
+                epsilon += abs(eps_grd) < 0.2 * step_size ? eps_grd : 0.2 * sign(eps_grd) * step_size;
             else
                 eps_grd  = 0.0;
                 sum_logD_inE = 0.0;
