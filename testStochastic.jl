@@ -591,7 +591,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
         D = Euclidean_matrix(coordinates);
         C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        # C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+         epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));

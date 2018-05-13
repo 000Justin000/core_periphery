@@ -40,30 +40,6 @@ using Optim
             end
         end
 
-        #-----------------------------------------------------------------------------
-        omega_ = 0;
-        #-----------------------------------------------------------------------------
-        I,J,V = findnz(A);
-        #-----------------------------------------------------------------------------
-        for (i,j) in zip(I,J)
-            #---------------------------------------------------------------------
-            if (i < j)
-                omega_ += C[i] + C[j] - epsilon * log(D[i,j]);
-            end
-            #---------------------------------------------------------------------
-        end
-        #-----------------------------------------------------------------------------
-
-        for i in 1:n
-            for j in i+1:n
-#                 omega_ -= log(1+exp(C[i]+C[j])/D[i,j]^epsilon)
-                omega_ -= exp(C[i]+C[j])/D[i,j]^epsilon - (1/2) * (exp(C[i]+C[j])/D[i,j]^epsilon)^2 + (1/3) * (exp(C[i]+C[j])/D[i,j]^epsilon)^3
-            end
-        end
-
-        println("omega :    ", omega)
-        println("omega_:    ", omega_)
-
         return omega;
     end
     #-----------------------------------------------------------------------------
@@ -100,7 +76,7 @@ using Optim
         n = size(A,1);
         d = vec(sum(A,2));
         order = sortperm(d, rev=true);
-        C = d / maximum(d) * 1.0e-6 - 3;
+        C = d / maximum(d) * 1.0e-6;
 
         #-----------------------------------------------------------------------------
         # \sum_{ij in E} -log_Dij
@@ -126,7 +102,8 @@ using Optim
         optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
                                                                         iterations = opt["max_num_step"],
                                                                         show_trace = true,
-                                                                        show_every = 1));
+                                                                        show_every = 1,
+                                                                        allow_f_increases = true));
 
         println(optim);
 

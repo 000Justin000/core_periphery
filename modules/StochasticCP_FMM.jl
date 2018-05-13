@@ -52,16 +52,15 @@ module StochasticCP_FMM
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
-            if (distance >= 2*(sp1r + sp2r))# && ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node))/(distance^epsilon) < 0.3))
-            # if ((sp1r + sp2r) < 1.0e-12)
-                if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
-                    cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
-                else
-                    cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
-                                      -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
-                                      +(1/3) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^3
-#                                      -(1/4) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^4;
-                end
+            if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
+                cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
+                cmp[end].m += 1;
+            elseif (distance >= 2*(sp1r + sp2r) && ((cmp[idx_1].m * cmp[idx_2].m)/(distance^epsilon) < 0.2))
+            # elseif ((sp1r + sp2r) < 1.0e-12)
+                cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
+                                  -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
+                                  +(1/3) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^3
+                                  -(1/4) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^4;
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
                 acc_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
@@ -161,7 +160,6 @@ module StochasticCP_FMM
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
 
-        println(fmm_tree[end].m);
 
 #        #-------------------------------------------------------------------------
 #        fmm_tree = Array{Particle,1}(ni+nl+1);
@@ -218,22 +216,20 @@ module StochasticCP_FMM
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
-            if (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
-            # if ((sp1r + sp2r) < 1.0e-12)
-                #-----------------------------------------------------------------
-                if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
-                    cmp[idx_1].pot_1 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon);
-                    cmp[idx_2].pot_1 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon);
-                    cmp[idx_1].pot_2 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
-                    cmp[idx_2].pot_2 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
-                else
-                    # cmp[idx_1].pot_1 += cmp[idx_2].m / distance^epsilon;
-                    # cmp[idx_2].pot_1 += cmp[idx_1].m / distance^epsilon;
-                    cmp[idx_1].pot_1 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
-                    cmp[idx_2].pot_1 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
-                    cmp[idx_1].pot_2 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
-                    cmp[idx_2].pot_2 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
-                end
+            if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
+                cmp[idx_1].pot_1 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon);
+                cmp[idx_2].pot_1 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon);
+                cmp[idx_1].pot_2 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
+                cmp[idx_2].pot_2 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
+                cmp[end].m += 1;
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
+            # elseif ((sp1r + sp2r) < 1.0e-12)
+                # cmp[idx_1].pot_1 += cmp[idx_2].m / distance^epsilon;
+                # cmp[idx_2].pot_1 += cmp[idx_1].m / distance^epsilon;
+                cmp[idx_1].pot_1 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
+                cmp[idx_2].pot_1 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
+                cmp[idx_1].pot_2 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
+                cmp[idx_2].pot_2 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
                 fill_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
@@ -425,7 +421,8 @@ module StochasticCP_FMM
         optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
                                                                          iterations = opt["max_num_step"],
                                                                          show_trace = true,
-                                                                         show_every = 1));
+                                                                         show_every = 1,
+                                                                         allow_f_increases = true));
 
         println(optim);
 
