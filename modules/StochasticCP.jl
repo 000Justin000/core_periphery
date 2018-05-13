@@ -100,10 +100,10 @@ using Optim
         println("starting optimization:")
 
         optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
-                                                                        iterations = opt["max_num_step"],
-                                                                        show_trace = true,
-                                                                        show_every = 1,
-                                                                        allow_f_increases = true));
+                                                                          iterations = opt["max_num_step"],
+                                                                          show_trace = true,
+                                                                          show_every = 1,
+                                                                          allow_f_increases = true));
 
         println(optim);
 

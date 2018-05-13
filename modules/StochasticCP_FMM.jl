@@ -418,12 +418,20 @@ module StochasticCP_FMM
 
         println("starting optimization:")
 
-        optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
-                                                                         iterations = opt["max_num_step"],
-                                                                         show_trace = true,
-                                                                         show_every = 1,
-                                                                         allow_f_increases = true));
+#         lo = -ones(length(C)+1) * Inf; lo[end] = 0;
+#         hi =  ones(length(C)+1) * Inf;
+#
+#         od = OnceDifferentiable(f!,g!,vcat(C,[epsilon]));
+#         optim = optimize(od, vcat(C,[epsilon]), lo, hi, Fminbox{LBFGS}(), show_trace = true,
+#                                                                           show_every = 1,
+#                                                                           allow_f_increases = true,
+#                                                                           iterations = opt["max_num_step"]);
 
+        optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
+                                                                          iterations = opt["max_num_step"],
+                                                                          show_trace = true,
+                                                                          show_every = 1,
+                                                                          allow_f_increases = true));
         println(optim);
 
 
