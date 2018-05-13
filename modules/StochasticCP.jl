@@ -40,6 +40,30 @@ using Optim
             end
         end
 
+        #-----------------------------------------------------------------------------
+        omega_ = 0;
+        #-----------------------------------------------------------------------------
+        I,J,V = findnz(A);
+        #-----------------------------------------------------------------------------
+        for (i,j) in zip(I,J)
+            #---------------------------------------------------------------------
+            if (i < j)
+                omega_ += C[i] + C[j] - epsilon * log(D[i,j]);
+            end
+            #---------------------------------------------------------------------
+        end
+        #-----------------------------------------------------------------------------
+
+        for i in 1:n
+            for j in i+1:n
+#                 omega_ -= log(1+exp(C[i]+C[j])/D[i,j]^epsilon)
+                omega_ -= exp(C[i]+C[j])/D[i,j]^epsilon - (1/2) * (exp(C[i]+C[j])/D[i,j]^epsilon)^2 + (1/3) * (exp(C[i]+C[j])/D[i,j]^epsilon)^3
+            end
+        end
+
+        println("omega :    ", omega)
+        println("omega_:    ", omega_)
+
         return omega;
     end
     #-----------------------------------------------------------------------------
@@ -56,7 +80,7 @@ using Optim
         srd = sum_rho_logD(C,D,epsilon);
 
         storage[1:end-1] = -G;
-        storage[end] = -(srd + sum_logD_inE)
+        storage[end] = -(srd - sum_logD_inE)
     end
     #-----------------------------------------------------------------------------
 
@@ -76,7 +100,7 @@ using Optim
         n = size(A,1);
         d = vec(sum(A,2));
         order = sortperm(d, rev=true);
-        C = d / maximum(d) * 1.0e-6;
+        C = d / maximum(d) * 1.0e-6 - 3;
 
         #-----------------------------------------------------------------------------
         # \sum_{ij in E} -log_Dij
@@ -88,7 +112,7 @@ using Optim
         for (i,j) in zip(I,J)
             #---------------------------------------------------------------------
             if (i < j)
-                sum_logD_inE -= log(D[i,j])
+                sum_logD_inE += log(D[i,j])
             end
             #---------------------------------------------------------------------
         end
@@ -99,12 +123,12 @@ using Optim
 
         println("starting optimization:")
 
-        opt = optimize(f, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
+        optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
                                                                         iterations = opt["max_num_step"],
                                                                         show_trace = true,
                                                                         show_every = 1));
 
-        println(opt);
+        println(optim);
 
 #       converged = false;
 #       num_step = 0;
@@ -149,8 +173,8 @@ using Optim
 #           end
 #       end
 
-        C = opt.minimizer[1:end-1];
-        epsilon = opt.minimizer[end];
+        C = optim.minimizer[1:end-1];
+        epsilon = optim.minimizer[end];
 
         println(epsilon);
 

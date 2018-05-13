@@ -3,6 +3,7 @@ module StochasticCP_FMM
     using StatsBase;
     using Distances;
     using NearestNeighbors;
+    using Optim
 #   using Plots; pyplot();
 
     export model_fit, model_gen
@@ -51,9 +52,16 @@ module StochasticCP_FMM
             sp1r = bt.hyper_spheres[idx_1].r
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
-            if (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
+            if (distance >= 2*(sp1r + sp2r))# && ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node))/(distance^epsilon) < 0.3))
             # if ((sp1r + sp2r) < 1.0e-12)
-                cmp[end].pot_1 += (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon);
+                if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
+                    cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
+                else
+                    cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
+                                      -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
+                                      +(1/3) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^3
+#                                      -(1/4) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^4;
+                end
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
                 acc_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
@@ -81,7 +89,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function omega(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE)
+    function omega!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE)
         n = length(C);
 
         #-------------------------------------------------------------------------
@@ -117,9 +125,8 @@ module StochasticCP_FMM
 
             #---------------------------------------------------------------------
             cid2all = log.( (exp.(C[cid] .+ C) .+ dist[cid].^epsilon) ./ (dist[cid].^epsilon) );
-            omega -= sum(cid2all);                                # c->c and c->p
-            cid2all[cid] = 0;
-            omega -= sum(cid2all);                                # c->p
+            cid2all[cid] = 0;     omega -= 0.5 * sum(cid2all);     # c->c and c->p
+            cid2all[core_id] = 0; omega -= 0.5 * sum(cid2all);              # c->p
             #---------------------------------------------------------------------
         end
         #-------------------------------------------------------------------------
@@ -154,25 +161,29 @@ module StochasticCP_FMM
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
 
-        #-------------------------------------------------------------------------
-        fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-        #-------------------------------------------------------------------------
-        fill_cm!(fmm_tree, 1, bt, ms^2, roid, srid, CoM2);
-        acc_p!(fmm_tree, 1, bt, epsilon*2);
-        #-------------------------------------------------------------------------
-        omega -= (-1/2)*fmm_tree[end].pot_1;
-        #-------------------------------------------------------------------------
+        println(fmm_tree[end].m);
 
-        #-------------------------------------------------------------------------
-        fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-        #-------------------------------------------------------------------------
-        fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        acc_p!(fmm_tree, 1, bt, epsilon);
-        #-------------------------------------------------------------------------
-        omega -= (1/3)*fmm_tree[end].pot_1;
-        #-------------------------------------------------------------------------
+#        #-------------------------------------------------------------------------
+#        fmm_tree = Array{Particle,1}(ni+nl+1);
+#        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+#        #-------------------------------------------------------------------------
+#        fill_cm!(fmm_tree, 1, bt, ms.^2, roid, srid, CoM2);
+#        acc_p!(fmm_tree, 1, bt, epsilon*2);
+#        #-------------------------------------------------------------------------
+#        omega -= (-1/2)*fmm_tree[end].pot_1;
+#        #-------------------------------------------------------------------------
+#        println(omega);
+#
+#        #-------------------------------------------------------------------------
+#        fmm_tree = Array{Particle,1}(ni+nl+1);
+#        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+#        #-------------------------------------------------------------------------
+#        fill_cm!(fmm_tree, 1, bt, ms.^3, roid, srid, CoM2);
+#        acc_p!(fmm_tree, 1, bt, epsilon*3);
+#        #-------------------------------------------------------------------------
+#        omega -= (1/3)*fmm_tree[end].pot_1;
+#        #-------------------------------------------------------------------------
+#        println(omega);
 
         return omega;
     end
@@ -266,7 +277,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function epd_and_srd(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio)
+    function epd_and_srd!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio)
         n = length(C);
 
         #-------------------------------------------------------------------------
@@ -357,6 +368,19 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
 
 
+    #-----------------------------------------------------------------------------
+    # gradient of objective function
+    #-----------------------------------------------------------------------------
+    function negative_gradient_omega!(C, coords, CoM2, dist, epsilon, bt, ratio, d, sum_logD_inE, storage)
+        epd, srd, fmm_tree = epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+
+        G = d - epd;
+
+        storage[1:end-1] = -G;
+        storage[end] = -(srd - sum_logD_inE);
+    end
+    #-----------------------------------------------------------------------------
+
 
     #-----------------------------------------------------------------------------
     # given the adjacency matrix and coordinates, compute the core scores
@@ -390,62 +414,75 @@ module StochasticCP_FMM
         end
         #-----------------------------------------------------------------------------
 
-        converged = false;
-        num_step = 0;
-        acc_step = 0;
-        acc_C    = zeros(n);
-
         dist = Dict{Int64,Array{Float64,1}}()
         bt = BallTree(coords, metric, leafsize=1);
 
-        delta_C = 1.0;
-        step_size = opt["step_size"];
+        f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], A, sum_logD_inE);
+        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], d, sum_logD_inE, storage)
 
-        while(!converged && num_step < opt["max_num_step"])
-            num_step += 1;
-            C0 = copy(C);
+        println("starting optimization:")
 
-            # compute the expected degree with fmm;
-            epd, srd, fmm_tree = epd_and_srd(C, coords, CoM2, dist, epsilon, bt, opt["ratio"]);
+        optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
+                                                                         iterations = opt["max_num_step"],
+                                                                         show_trace = true,
+                                                                         show_every = 1));
 
-            # compute the gradient
-            G = d - epd;
+        println(optim);
 
-            # update the core score
-            C = C + G * step_size + 0.0 * (rand(n)*2-1) * step_size;
 
-            if (typeof(epsilon) <: AbstractFloat)
-                eps_grd  = 1.0e-2 * step_size * (-sum_logD_inE + srd);
+
+
+#       while(!converged && num_step < opt["max_num_step"])
+#           num_step += 1;
+#           C0 = copy(C);
+
+#           # compute the expected degree with fmm;
+#           epd, srd, fmm_tree = epd_and_srd(C, coords, CoM2, dist, epsilon, bt, opt["ratio"]);
+
+#           # compute the gradient
+#           G = d - epd;
+
+#           # update the core score
+#           C = C + G * step_size + 0.0 * (rand(n)*2-1) * step_size;
+
+#           if (typeof(epsilon) <: AbstractFloat)
+#               eps_grd  = 1.0e-2 * step_size * (-sum_logD_inE + srd);
 #               epsilon += eps_grd;
-                epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
-            else
-                eps_grd  = 0.0;
-                sum_logD_inE = 0.0;
-                srd = 0.0;
-            end
+#               epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
+#           else
+#               eps_grd  = 0.0;
+#               sum_logD_inE = 0.0;
+#               srd = 0.0;
+#           end
 
 #           h = plot(C[order]);
 #           display(h);
 
-            if (norm(C-C0)/norm(C) < opt["thres"])
-                converged = true;
-            else
-                if (norm(C-C0)/norm(C) > 1.01 * delta_C)
-                    step_size *= 0.99;
-                end
-                delta_C = norm(C-C0)/norm(C);
+#           if (norm(C-C0)/norm(C) < opt["thres"])
+#               converged = true;
+#           else
+#               if (norm(C-C0)/norm(C) > 1.01 * delta_C)
+#                   step_size *= 0.99;
+#               end
+#               delta_C = norm(C-C0)/norm(C);
 
-                @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
-                         num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
-            end
+#               @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
+#                        num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
+#           end
 
-            if (num_step > 0.95 * opt["max_num_step"] - 1)
-                acc_step += 1;
-                acc_C    += C;
-            end
-        end
+#           if (num_step > 0.95 * opt["max_num_step"] - 1)
+#               acc_step += 1;
+#               acc_C    += C;
+#           end
+#       end
 
 #       C = acc_step > 0 ? acc_C/acc_step : C;
+        C = optim.minimizer[1:end-1];
+        epsilon = optim.minimizer[end];
+
+        println(epsilon);
+        println(omega!(C, coords, CoM2, dist, epsilon, bt, opt["ratio"], A, sum_logD_inE));
+
         @assert epsilon > 0;
         return C, epsilon;
     end
