@@ -19,6 +19,7 @@ module StochasticCP_FMM
     end
     #-----------------------------------------------------------------------------
 
+
     #-----------------------------------------------------------------------------
     # recursively compute the center of mass of each node
     #-----------------------------------------------------------------------------
@@ -37,6 +38,146 @@ module StochasticCP_FMM
         end
     end
     #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    # compute the potential between two nodes
+    #-----------------------------------------------------------------------------
+    function acc_p2!(cmp, idx_1, idx_2, bt, epsilon)
+        n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
+        if ((idx_1 <= n_node) && (idx_2 <= n_node))
+            #-----------------------------------------------------------------
+            distance = evaluate(bt.metric, bt.hyper_spheres[idx_1].center, bt.hyper_spheres[idx_2].center);
+            #-----------------------------------------------------------------
+            sp1r = bt.hyper_spheres[idx_1].r
+            sp2r = bt.hyper_spheres[idx_2].r
+            #-----------------------------------------------------------------
+            if (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
+            # if ((sp1r + sp2r) < 1.0e-12)
+                cmp[end].pot_1 += (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon);
+                cmp[end].m += 1;
+            elseif (sp1r <= sp2r)
+                acc_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
+                acc_p2!(cmp, idx_1, idx_2*2+1, bt, epsilon);
+            else
+                acc_p2!(cmp, idx_1*2,   idx_2, bt, epsilon);
+                acc_p2!(cmp, idx_1*2+1, idx_2, bt, epsilon);
+            end
+        end
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    # recursively compute the potential at each level of the tree
+    #-----------------------------------------------------------------------------
+    function acc_p!(cmp, idx, bt, epsilon)
+        if (idx <= bt.tree_data.n_internal_nodes)
+            acc_p2!(cmp, idx*2, idx*2+1, bt, epsilon)
+            acc_p!(cmp,  idx*2,          bt, epsilon)
+            acc_p!(cmp,  idx*2+1,        bt, epsilon)
+        end
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    # compute the expected degree of each node with fast multipole method
+    #-----------------------------------------------------------------------------
+    function omega(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE)
+        n = length(C);
+
+        #-------------------------------------------------------------------------
+        omega = 0.0;
+        #-------------------------------------------------------------------------
+        I,J,V = findnz(A);
+        #-----------------------------------------------------------------------------
+        for (i,j) in zip(I,J)
+            #---------------------------------------------------------------------
+            if (i < j)
+                omega += C[i] + C[j];
+            end
+            #---------------------------------------------------------------------
+        end
+        #-----------------------------------------------------------------------------
+        omega -= epsilon * sum_logD_inE;
+        #-----------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))]; # JJ: debug
+        #-------------------------------------------------------------------------
+        # now compute the c->c and c->p
+        #-------------------------------------------------------------------------
+        for cid in core_id
+            if (!haskey(dist, cid))
+                dist2cid = zeros(n);
+                for i in 1:n
+                    dist2cid[i] = evaluate(bt.metric, coords[:,cid], coords[:,i]);
+                end
+
+                dist[cid] = dist2cid;
+            end
+
+            #---------------------------------------------------------------------
+            cid2all = log.( (exp.(C[cid] .+ C) .+ dist[cid].^epsilon) ./ (dist[cid].^epsilon) );
+            omega -= sum(cid2all);                                # c->c and c->p
+            cid2all[cid] = 0;
+            omega -= sum(cid2all);                                # c->p
+            #---------------------------------------------------------------------
+        end
+        #-------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        # now compute the p->c and p->p
+        #-------------------------------------------------------------------------
+        td = bt.tree_data;
+        ni = td.n_internal_nodes;
+        nl = td.n_leafs;
+        roid = bt.indices;             # (o)riginal id of the (r)eordered data points
+        orid = sortperm(roid);         # (r)eordered id of the (o)riginal data points
+        #-------------------------------------------------------------------------
+        # (r)eordered data point id of the hyper(s)pheres
+        srid = Dict((idx >= td.cross_node) ? (idx => td.offset_cross + idx) : (idx => td.offset + idx) for idx in (ni+1:ni+nl));
+        # hyper(s)phere id of the (r)eordered data points
+        rsid = Dict((idx >= td.cross_node) ? (td.offset_cross + idx => idx) : (td.offset + idx => idx) for idx in (ni+1:ni+nl));
+        #-------------------------------------------------------------------------
+        # data structure that stores the node's CoM, mass, and potential
+        # corresponding to nodes in BallTree data structure
+        #-------------------------------------------------------------------------
+        ms = exp.(C); ms[core_id] = 0;
+        #-------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        fmm_tree = Array{Particle,1}(ni+nl+1);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        #-------------------------------------------------------------------------
+        fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
+        acc_p!(fmm_tree, 1, bt, epsilon);
+        #-------------------------------------------------------------------------
+        omega -= fmm_tree[end].pot_1;
+        #-------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        fmm_tree = Array{Particle,1}(ni+nl+1);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        #-------------------------------------------------------------------------
+        fill_cm!(fmm_tree, 1, bt, ms^2, roid, srid, CoM2);
+        acc_p!(fmm_tree, 1, bt, epsilon*2);
+        #-------------------------------------------------------------------------
+        omega -= (-1/2)*fmm_tree[end].pot_1;
+        #-------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        fmm_tree = Array{Particle,1}(ni+nl+1);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        #-------------------------------------------------------------------------
+        fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
+        acc_p!(fmm_tree, 1, bt, epsilon);
+        #-------------------------------------------------------------------------
+        omega -= (1/3)*fmm_tree[end].pot_1;
+        #-------------------------------------------------------------------------
+
+        return omega;
+    end
+    #-----------------------------------------------------------------------------
+
 
     #-----------------------------------------------------------------------------
     function subtree_size(idx, n)
@@ -67,7 +208,7 @@ module StochasticCP_FMM
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
             if (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
-#           if ((sp1r + sp2r) < 1.0e-12)
+            # if ((sp1r + sp2r) < 1.0e-12)
                 #-----------------------------------------------------------------
                 if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                     cmp[idx_1].pot_1 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon);
@@ -75,14 +216,14 @@ module StochasticCP_FMM
                     cmp[idx_1].pot_2 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                     cmp[idx_2].pot_2 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 else
-#                   cmp[idx_1].pot_1 += cmp[idx_2].m / distance^epsilon;
-#                   cmp[idx_2].pot_1 += cmp[idx_1].m / distance^epsilon;
+                    # cmp[idx_1].pot_1 += cmp[idx_2].m / distance^epsilon;
+                    # cmp[idx_2].pot_1 += cmp[idx_1].m / distance^epsilon;
                     cmp[idx_1].pot_1 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                     cmp[idx_2].pot_1 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                     cmp[idx_1].pot_2 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
                     cmp[idx_2].pot_2 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
                 end
-                cmp[end].pot_2 += 1;
+                cmp[end].m += 1;
             elseif (sp1r <= sp2r)
                 fill_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
                 fill_p2!(cmp, idx_1, idx_2*2+1, bt, epsilon);
@@ -185,12 +326,10 @@ module StochasticCP_FMM
         # data structure that stores the node's CoM, mass, and potential
         # corresponding to nodes in BallTree data structure
         #-------------------------------------------------------------------------
+        ms = exp.(C); ms[core_id] = 0;
+        #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
         fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-        #-------------------------------------------------------------------------
-        ms = exp.(C);
-        #-------------------------------------------------------------------------
-        ms[core_id] = 0;
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -216,6 +355,7 @@ module StochasticCP_FMM
         return epd, srd, fmm_tree;
     end
     #-----------------------------------------------------------------------------
+
 
 
     #-----------------------------------------------------------------------------
@@ -244,7 +384,7 @@ module StochasticCP_FMM
         for (i,j) in zip(I,J)
             #---------------------------------------------------------------------
             if (i < j)
-                sum_logD_inE -= log(evaluate(metric, coords[:,i], coords[:,j]))
+                sum_logD_inE += log(evaluate(metric, coords[:,i], coords[:,j]))
             end
             #---------------------------------------------------------------------
         end
@@ -275,7 +415,7 @@ module StochasticCP_FMM
             C = C + G * step_size + 0.0 * (rand(n)*2-1) * step_size;
 
             if (typeof(epsilon) <: AbstractFloat)
-                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
+                eps_grd  = 1.0e-2 * step_size * (-sum_logD_inE + srd);
 #               epsilon += eps_grd;
                 epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
             else

@@ -1,5 +1,6 @@
 #---------------------------------------------------------------------------------
 module StochasticCP
+using Optim
 #   using Plots; pyplot();
 
     export model_fit, model_gen
@@ -23,23 +24,39 @@ module StochasticCP
     #-----------------------------------------------------------------------------
     # object function we are trying to maximize
     #-----------------------------------------------------------------------------
-    # theta = \sum_{i<j} A_{ij} \log(rho_{ij}) + (1-A_{ij}) \log(1-rho_{ij})
+    # omega = \sum_{i<j} A_{ij} \log(rho_{ij}) + (1-A_{ij}) \log(1-rho_{ij})
     #-----------------------------------------------------------------------------
-    function theta(A, C, D, epsilon)
+    function omega(A, C, D, epsilon)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
         n = size(A,1);
         rho = probability_matrix(C,D,epsilon)
 
-        theta = 0;
+        omega = 0;
         for i in 1:n
             for j in i+1:n
-                theta += A[i,j]*log(rho[i,j]) + (1-A[i,j])*log(1-rho[i,j]);
+                omega += A[i,j]*log(rho[i,j]) + (1-A[i,j])*log(1-rho[i,j]);
             end
         end
 
-        return theta;
+        return omega;
+    end
+    #-----------------------------------------------------------------------------
+
+
+    #-----------------------------------------------------------------------------
+    # gradient of objective function
+    #-----------------------------------------------------------------------------
+    function negative_gradient_omega!(A, C, D, epsilon, sum_logD_inE, storage)
+        @assert issymmetric(A);
+        @assert issymmetric(D);
+
+        G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
+        srd = sum_rho_logD(C,D,epsilon);
+
+        storage[1:end-1] = -G;
+        storage[end] = -(srd + sum_logD_inE)
     end
     #-----------------------------------------------------------------------------
 
@@ -77,50 +94,67 @@ module StochasticCP
         end
         #-----------------------------------------------------------------------------
 
-        converged = false;
-        num_step = 0;
+        f(x)           = -omega(A,x[1:end-1],D,x[end]);
+        g!(storage, x) =  negative_gradient_omega!(A,x[1:end-1],D,x[end],sum_logD_inE,storage)
 
-        delta_C = 1.0;
-        step_size = opt["step_size"];
+        println("starting optimization:")
 
-        while(!converged && num_step < opt["max_num_step"])
-            num_step += 1;
-            C0 = copy(C);
+        opt = optimize(f, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
+                                                                        iterations = opt["max_num_step"],
+                                                                        show_trace = true,
+                                                                        show_every = 1));
 
-            # compute the gradient
-            G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
+        println(opt);
 
-            # update the core score
-            C = C + step_size * G;
+#       converged = false;
+#       num_step = 0;
 
-            if (typeof(epsilon) <: AbstractFloat)
-                srd = sum_rho_logD(C0,D,epsilon);
-                eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
+#       delta_C = 1.0;
+#       step_size = opt["step_size"];
+
+#       while(!converged && num_step < opt["max_num_step"])
+#           num_step += 1;
+#           C0 = copy(C);
+
+#           # compute the gradient
+#           G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
+
+#           # update the core score
+#           C = C + step_size * G;
+
+#           if (typeof(epsilon) <: AbstractFloat)
+#               srd = sum_rho_logD(C0,D,epsilon);
+#               eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
 #               epsilon += eps_grd;
-                epsilon += abs(eps_grd) < 0.2 * step_size ? eps_grd : 0.2 * sign(eps_grd) * step_size;
-            else
-                eps_grd  = 0.0;
-                sum_logD_inE = 0.0;
-                srd = 0.0;
-            end
+#               epsilon += abs(eps_grd) < 0.2 * step_size ? eps_grd : 0.2 * sign(eps_grd) * step_size;
+#           else
+#               eps_grd  = 0.0;
+#               sum_logD_inE = 0.0;
+#               srd = 0.0;
+#           end
 
 #           h = plot(C[order]);
 #           display(h);
 
-            if (norm(C-C0)/norm(C) < opt["thres"])
-                converged = true;
-            else
-                if (norm(C-C0)/norm(C) > 1.01 * delta_C)
-                    step_size *= 0.99;
-                end
-                delta_C = norm(C-C0)/norm(C);
+#           if (norm(C-C0)/norm(C) < opt["thres"])
+#               converged = true;
+#           else
+#               if (norm(C-C0)/norm(C) > 1.01 * delta_C)
+#                   step_size *= 0.99;
+#               end
+#               delta_C = norm(C-C0)/norm(C);
 
-                @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
-                        num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
-            end
-        end
+#               @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
+#                       num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
+#           end
+#       end
 
-        println(theta(A,C,D,epsilon));
+        C = opt.minimizer[1:end-1];
+        epsilon = opt.minimizer[end];
+
+        println(epsilon);
+
+        println(omega(A,C,D,epsilon));
         @assert epsilon > 0;
         return C, epsilon;
     end
