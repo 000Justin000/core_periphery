@@ -160,7 +160,6 @@ module StochasticCP_FMM
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
 
-
 #        #-------------------------------------------------------------------------
 #        fmm_tree = Array{Particle,1}(ni+nl+1);
 #        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
@@ -427,11 +426,13 @@ module StochasticCP_FMM
 #                                                                           allow_f_increases = true,
 #                                                                           iterations = opt["max_num_step"]);
 
-        optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(), Optim.Options(g_tol = 1e-6,
-                                                                          iterations = opt["max_num_step"],
-                                                                          show_trace = true,
-                                                                          show_every = 1,
-                                                                          allow_f_increases = true));
+
+        precond = speye(length(C)+1); precond[end,end] = length(C);
+        optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
+                                                                                      iterations = opt["max_num_step"],
+                                                                                      show_trace = true,
+                                                                                      show_every = 1,
+                                                                                      allow_f_increases = false));
         println(optim);
 
 
