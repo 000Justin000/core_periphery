@@ -301,7 +301,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=10000)
+function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=10000)
     data = MAT.matread("data/london_underground/london_underground_clean.mat");
 
     W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
@@ -310,7 +310,6 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
     opt = Dict()
     opt["ratio"] = ratio;
     opt["thres"] = thres;
-    opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
     #---------------------------------------------------------------------------------------------
@@ -325,11 +324,12 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, m
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
-        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
+        D = ones(A)-eye(A);
+        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
+        B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, data["Tube_Locations"];
+    return A, B, C, D, data["Tube_Locations"], epsilon;
 end
 #----------------------------------------------------------------
 
@@ -424,7 +424,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -474,7 +474,6 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, ma
     opt = Dict()
     opt["ratio"] = ratio;
     opt["thres"] = thres;
-    opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
     if (epsilon > 0)
@@ -488,11 +487,12 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, ma
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
-        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
+        D = ones(A)-eye(A);
+        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
+        B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, coordinates
+    return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
@@ -513,7 +513,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -528,7 +528,6 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     opt = Dict()
     opt["ratio"] = ratio;
     opt["thres"] = thres;
-    opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
@@ -543,11 +542,12 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
-        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
+        D = ones(A)-eye(A);
+        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
+        B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, coordinates
+    return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
@@ -568,7 +568,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -583,7 +583,6 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     opt = Dict()
     opt["ratio"] = ratio;
     opt["thres"] = thres;
-    opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
@@ -598,11 +597,12 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
-        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
+        D = ones(A)-eye(A);
+        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
+        B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, coordinates
+    return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
@@ -623,7 +623,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_num_step=1000)
+function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
     # load facebook100 data
     #--------------------------------
@@ -641,7 +641,6 @@ function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
     opt = Dict()
     opt["ratio"] = ratio;
     opt["thres"] = thres;
-    opt["step_size"] = step_size;
     opt["max_num_step"] = max_num_step;
 
     #--------------------------------
@@ -656,11 +655,12 @@ function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, step_size=0.01, max_
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     else
-        C, epsilon = StochasticCP.model_fit(A, ones(A)-eye(A), 1; opt=opt);
-        B = StochasticCP.model_gen(C, ones(A)-eye(A), 1);
+        D = ones(A)-eye(A);
+        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
+        B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, coordinates
+    return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 

@@ -385,7 +385,7 @@ module StochasticCP_FMM
                        CoM2,
                        metric = Euclidean(),
                        epsilon = 1;
-                       opt = Dict("thres"=>1.0e-6, "step_size"=>0.01, "max_num_step"=>10000, "ratio"=>1.0))
+                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0))
         @assert issymmetric(A);
         A = spones(A);
         n = size(A,1);

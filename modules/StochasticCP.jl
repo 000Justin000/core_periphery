@@ -67,7 +67,6 @@ using Optim
     # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
     #---------------------------------------------------------------------------------------------
     function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6,
-                                                "step_size"=>0.01,
                                                 "max_num_step"=>10000))
         @assert issymmetric(A);
         @assert issymmetric(D);
@@ -100,7 +99,7 @@ using Optim
         println("starting optimization:")
 
         precond = speye(length(C)+1); precond[end,end] = length(C);
-        optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
+        optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = opt["thres"],
                                                                                      iterations = opt["max_num_step"],
                                                                                      show_trace = true,
                                                                                      show_every = 1,
