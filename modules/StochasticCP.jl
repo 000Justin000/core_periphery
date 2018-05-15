@@ -96,59 +96,18 @@ using Optim
         f(x)           = -omega(A,x[1:end-1],D,x[end]);
         g!(storage, x) =  negative_gradient_omega!(A,x[1:end-1],D,x[end],sum_logD_inE,storage)
 
+        #-----------------------------------------------------------------------------
         println("starting optimization:")
-
+        #-----------------------------------------------------------------------------
         precond = speye(length(C)+1); precond[end,end] = length(C);
         optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = opt["thres"],
                                                                                      iterations = opt["max_num_step"],
                                                                                      show_trace = true,
                                                                                      show_every = 1,
                                                                                      allow_f_increases = false));
-
+        #-----------------------------------------------------------------------------
         println(optim);
-
-#       converged = false;
-#       num_step = 0;
-
-#       delta_C = 1.0;
-#       step_size = opt["step_size"];
-
-#       while(!converged && num_step < opt["max_num_step"])
-#           num_step += 1;
-#           C0 = copy(C);
-
-#           # compute the gradient
-#           G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
-
-#           # update the core score
-#           C = C + step_size * G;
-
-#           if (typeof(epsilon) <: AbstractFloat)
-#               srd = sum_rho_logD(C0,D,epsilon);
-#               eps_grd  = 1.0e-2 * step_size * (sum_logD_inE + srd);
-#               epsilon += eps_grd;
-#               epsilon += abs(eps_grd) < 0.2 * step_size ? eps_grd : 0.2 * sign(eps_grd) * step_size;
-#           else
-#               eps_grd  = 0.0;
-#               sum_logD_inE = 0.0;
-#               srd = 0.0;
-#           end
-
-#           h = plot(C[order]);
-#           display(h);
-
-#           if (norm(C-C0)/norm(C) < opt["thres"])
-#               converged = true;
-#           else
-#               if (norm(C-C0)/norm(C) > 1.01 * delta_C)
-#                   step_size *= 0.99;
-#               end
-#               delta_C = norm(C-C0)/norm(C);
-
-#               @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
-#                       num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
-#           end
-#       end
+        #-----------------------------------------------------------------------------
 
         C = optim.minimizer[1:end-1];
         epsilon = optim.minimizer[end];

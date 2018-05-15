@@ -415,74 +415,29 @@ module StochasticCP_FMM
         f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], A, sum_logD_inE);
         g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], d, sum_logD_inE, storage)
 
+        #-----------------------------------------------------------------------------
         println("starting optimization:")
-
-#         lo = -ones(length(C)+1) * Inf; lo[end] = 0;
-#         hi =  ones(length(C)+1) * Inf;
-#
-#         od = OnceDifferentiable(f!,g!,vcat(C,[epsilon]));
-#         optim = optimize(od, vcat(C,[epsilon]), lo, hi, Fminbox{LBFGS}(), show_trace = true,
-#                                                                           show_every = 1,
-#                                                                           allow_f_increases = true,
-#                                                                           iterations = opt["max_num_step"]);
-
-
+        #-----------------------------------------------------------------------------
+        # lo = -ones(length(C)+1) * Inf; lo[end] = 0;
+        # hi =  ones(length(C)+1) * Inf;
+        #
+        # od = OnceDifferentiable(f!,g!,vcat(C,[epsilon]));
+        # optim = optimize(od, vcat(C,[epsilon]), lo, hi, Fminbox{LBFGS}(), show_trace = true,
+        #                                                                   show_every = 1,
+        #                                                                   allow_f_increases = true,
+        #                                                                   iterations = opt["max_num_step"]);
+        #-----------------------------------------------------------------------------
         precond = speye(length(C)+1); precond[end,end] = length(C);
         optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
                                                                                       iterations = opt["max_num_step"],
                                                                                       show_trace = true,
                                                                                       show_every = 1,
                                                                                       allow_f_increases = false));
+        #-----------------------------------------------------------------------------
         println(optim);
+        #-----------------------------------------------------------------------------
 
 
-
-
-#       while(!converged && num_step < opt["max_num_step"])
-#           num_step += 1;
-#           C0 = copy(C);
-
-#           # compute the expected degree with fmm;
-#           epd, srd, fmm_tree = epd_and_srd(C, coords, CoM2, dist, epsilon, bt, opt["ratio"]);
-
-#           # compute the gradient
-#           G = d - epd;
-
-#           # update the core score
-#           C = C + G * step_size + 0.0 * (rand(n)*2-1) * step_size;
-
-#           if (typeof(epsilon) <: AbstractFloat)
-#               eps_grd  = 1.0e-2 * step_size * (-sum_logD_inE + srd);
-#               epsilon += eps_grd;
-#               epsilon += abs(eps_grd) < step_size ? eps_grd : sign(eps_grd) * step_size;
-#           else
-#               eps_grd  = 0.0;
-#               sum_logD_inE = 0.0;
-#               srd = 0.0;
-#           end
-
-#           h = plot(C[order]);
-#           display(h);
-
-#           if (norm(C-C0)/norm(C) < opt["thres"])
-#               converged = true;
-#           else
-#               if (norm(C-C0)/norm(C) > 1.01 * delta_C)
-#                   step_size *= 0.99;
-#               end
-#               delta_C = norm(C-C0)/norm(C);
-
-#               @printf("%d: %+8.3f, %+12.5e, %+12.5e, %+12.5e, %+12.5e, %+12.5e\n",
-#                        num_step, epsilon, step_size, eps_grd, sum_logD_inE, srd, delta_C);
-#           end
-
-#           if (num_step > 0.95 * opt["max_num_step"] - 1)
-#               acc_step += 1;
-#               acc_C    += C;
-#           end
-#       end
-
-#       C = acc_step > 0 ? acc_C/acc_step : C;
         C = optim.minimizer[1:end-1];
         epsilon = optim.minimizer[end];
 
