@@ -213,9 +213,9 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     d = vec(sum(A,1));
 
     if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.15*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.15*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     else
         error("option not supported.");
     end
@@ -223,11 +223,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     if (option == "degree")
         println("option: degree")
         rk = sortperm(sortperm(d))
-        ms = (rk/n).^2 * 6 + 0.3;
+        ms = (rk/n).^20 * 6 + 0.3;
     elseif (option == "core_score")
         println("option: core_score")
         rk = sortperm(sortperm(C))
-        ms = (rk/n).^2 * 6 + 0.3;
+        ms = (rk/n).^20 * 6 + 0.3;
     else
         error("option not supported.");
     end
@@ -246,7 +246,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                  legend=false,
                                  color="black",
                                  linewidth=0.10,
-                                 alpha=1.00);
+                                 alpha=0.15);
                     end
                     #------------------------------------------------
                 end
@@ -264,7 +264,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.15);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -276,14 +276,14 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.15);
 
                             plot!(h, [coords[max_id][1], 180.0],
                                      [coords[max_id][2], lat_c],
                                      legend=false,
                                      color="black",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.15);
                         end
                     end
                     #------------------------------------------------
@@ -536,7 +536,8 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
         C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        # B = StochasticCP.model_gen(C, D, epsilon);
+        B = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);

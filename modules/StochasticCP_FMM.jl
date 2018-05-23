@@ -186,17 +186,38 @@ module StochasticCP_FMM
     end
     #-----------------------------------------------------------------------------
 
+    #-----------------------------------------------------------------------------
+    function subtree_range(idx, n)
+        @assert mod(n,2) == 1;
+        @assert idx <= n;
+
+        p = Int64(floor(log(n)/log(2)) - floor(log(idx)/log(2)));
+
+        if (2^p * idx + 2^p - 1 <= n) # the tree that root at idx is full binary tree with height p
+            range = collect(2^p * idx : 2^p * idx + 2^p - 1);
+        elseif (2^p * idx <= n)       # the tree that root at idx is (not full) binary tree with height p
+            range = vcat(collect(2^(p-1) * idx + div(n - 2^p * idx + 1, 2) : 2^(p-1) * idx + 2^(p-1) - 1), collect(2^p * idx : n));
+        else                          # the tree that root at idx is full binary tree with height p-1
+            range = collect(2^(p-1) * idx : 2^(p-1) * idx + 2^(p-1) - 1);
+        end
+
+        return range;
+    end
+    #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
     function subtree_size(idx, n)
-        p = floor(log(n)/log(2)) - floor(log(idx)/log(2));
+        @assert mod(n,2) == 1;
+        @assert idx <= n;
 
-        if (2^p * idx + 2^p - 1 <= n)
-            size = 2^(p+1) - 1;
-        elseif (2^p * idx <= n)
-            size = (2^p - 1) + (n - 2^p * idx + 1);
-        else
-            size = (2^p - 1);
+        p = Int64(floor(log(n)/log(2)) - floor(log(idx)/log(2)));
+
+        if (2^p * idx + 2^p - 1 <= n) # the tree that root at idx is full binary tree with height p
+            size = 2^p;
+        elseif (2^p * idx <= n)       # the tree that root at idx is (not full) binary tree with height p
+            size = 2^(p-1) + div(n - 2^p * idx + 1, 2);
+        else                          # the tree that root at idx is full binary tree with height p-1
+            size = 2^(p-1);
         end
 
         return size;
@@ -449,20 +470,136 @@ module StochasticCP_FMM
     end
     #-----------------------------------------------------------------------------
 
+
+
+    #-----------------------------------------------------------------------------
+    # generate edges between points within two hyper_spheres
+    #-----------------------------------------------------------------------------
+    function gen_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, A)
+        n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
+        if ((idx_1 <= n_node) && (idx_2 <= n_node))
+            #-----------------------------------------------------------------
+            distance = evaluate(bt.metric, bt.hyper_spheres[idx_1].center, bt.hyper_spheres[idx_2].center);
+            #-----------------------------------------------------------------
+            sp1r = bt.hyper_spheres[idx_1].r
+            sp2r = bt.hyper_spheres[idx_2].r
+            #-----------------------------------------------------------------
+            if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
+                A[roid[srid[idx_1]], roid[srid[idx_2]]] = rand() < (cmp[idx_1].m * cmp[idx_2].m)/((cmp[idx_1].m * cmp[idx_2].m) + distance^epsilon) ? 1 : 0;
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
+            # elseif ((sp1r + sp2r) < 1.0e-12)
+                ne = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
+                # generate ne edges between this two group of nodes
+                grp_1 = subtree_range(idx_1,n_node);
+                grp_2 = subtree_range(idx_2,n_node);
+
+                grp_1_mass = [cmp[it].m for it in grp_1];
+                grp_2_mass = [cmp[it].m for it in grp_2];
+
+                grp_1_mass0 = mean(grp_1_mass);
+                grp_2_mass0 = mean(grp_2_mass);
+
+                grp_1_prob = (grp_1_mass .* grp_2_mass0) ./ (grp_1_mass .* grp_2_mass0 + distance^epsilon); grp_1_prob /= sum(grp_1_prob);
+                grp_2_prob = (grp_2_mass .* grp_1_mass0) ./ (grp_2_mass .* grp_1_mass0 + distance^epsilon); grp_2_prob /= sum(grp_2_prob);
+
+                grp_1_nodes = wsample(grp_1, grp_1_prob, Int64(floor(ne)), replace=true);
+                grp_2_nodes = wsample(grp_2, grp_2_prob, Int64(floor(ne)), replace=true);
+
+                for i in 1:ne
+                    A[roid[srid[grp_1_nodes[i]]], roid[srid[grp_2_nodes[i]]]] = 1;
+                end
+
+                cmp[end].m += 1;
+            elseif (sp1r <= sp2r)
+                gen_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, A);
+                gen_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, A);
+            else
+                gen_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, A);
+                gen_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, A);
+            end
+        end
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    # recursively generate edges at each level of the tree
+    #-----------------------------------------------------------------------------
+    function gen_e!(cmp, idx, bt, epsilon, roid, srid, A)
+        if (idx <= bt.tree_data.n_internal_nodes)
+            gen_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, A);
+            gen_e!(cmp,  idx*2,          bt, epsilon, roid, srid, A);
+            gen_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, A);
+        end
+    end
+    #-----------------------------------------------------------------------------
+
     #-----------------------------------------------------------------------------
     # given the core score and distance matrix, compute the adjacency matrix
     #-----------------------------------------------------------------------------
-    function model_gen(C, D=ones(C.*C')-eye(C.*C'))
-        @assert issymmetric(D);
+    function model_gen(C::Array{Float64,1},
+                       coords::Array{Float64,2},
+                       CoM2,
+                       metric = Euclidean(),
+                       epsilon = 1;
+                       opt = Dict("ratio"=>1.0))
 
-        n = size(C,1);
+        n = length(C);
+        A = spzeros(n,n)
 
-        A = spzeros(n,n);
-        for j in 1:n
-            for i in j+1:n
-                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]) ? 1 : 0;
+        dist = Dict{Int64,Array{Float64,1}}();
+        bt = BallTree(coords, metric, leafsize=1);
+
+        #-------------------------------------------------------------------------
+        core_id  = sortperm(C, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
+        core_set = Set(core_id);
+        #-------------------------------------------------------------------------
+        # now compute the c->c and c->p
+        #-------------------------------------------------------------------------
+        for cid in core_id
+            if (!haskey(dist, cid))
+                dist2cid = zeros(n);
+                for i in 1:n
+                    dist2cid[i] = evaluate(bt.metric, coords[:,cid], coords[:,i]);
+                end
+
+                dist[cid] = dist2cid;
+            end
+
+            for i in 1:n
+                if (!(i in core_set && i < cid))
+                    A[cid,i] = rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon) ? 1 : 0;
+                end
             end
         end
+        #-------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        # now compute the p->c and p->p
+        #-------------------------------------------------------------------------
+        td = bt.tree_data;
+        ni = td.n_internal_nodes;
+        nl = td.n_leafs;
+        roid = bt.indices;             # (o)riginal id of the (r)eordered data points
+        orid = sortperm(roid);         # (r)eordered id of the (o)riginal data points
+        #-------------------------------------------------------------------------
+        # (r)eordered data point id of the hyper(s)pheres
+        srid = Dict((idx >= td.cross_node) ? (idx => td.offset_cross + idx) : (idx => td.offset + idx) for idx in (ni+1:ni+nl));
+        # hyper(s)phere id of the (r)eordered data points
+        rsid = Dict((idx >= td.cross_node) ? (td.offset_cross + idx => idx) : (td.offset + idx => idx) for idx in (ni+1:ni+nl));
+        #-------------------------------------------------------------------------
+        # data structure that stores the node's CoM, mass, and potential
+        # corresponding to nodes in BallTree data structure
+        #-------------------------------------------------------------------------
+        ms = exp.(C); ms[core_id] = 0;
+        #-------------------------------------------------------------------------
+        fmm_tree = Array{Particle,1}(ni+nl+1);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        #-------------------------------------------------------------------------
+
+        #-------------------------------------------------------------------------
+        fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
+        gen_e!(fmm_tree, 1, bt, epsilon, roid, srid, A);
+        #-------------------------------------------------------------------------
 
         return A + A';
     end
