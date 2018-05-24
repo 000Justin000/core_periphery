@@ -486,8 +486,9 @@ module StochasticCP_FMM
             #-----------------------------------------------------------------
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                 @assert roid[srid[idx_1]] != roid[srid[idx_2]];
-
-                A[roid[srid[idx_1]], roid[srid[idx_2]]] = rand() < (cmp[idx_1].m * cmp[idx_2].m)/((cmp[idx_1].m * cmp[idx_2].m) + distance^epsilon) ? 1 : 0;
+                if (A[roid[srid[idx_1]], roid[srid[idx_2]]] != 1)
+                    A[roid[srid[idx_1]], roid[srid[idx_2]]] = rand() < (cmp[idx_1].m * cmp[idx_2].m)/((cmp[idx_1].m * cmp[idx_2].m) + distance^epsilon) ? 1 : 0;
+                end
             elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
@@ -508,15 +509,15 @@ module StochasticCP_FMM
                 grp_1_bin = vcat([0], cumsum(grp_1_prob)[1:end-1]);
                 grp_2_bin = vcat([0], cumsum(grp_2_prob)[1:end-1]);
 
-                # offset = rand() * 1.0/nei;
-                offset = 0;
+                offset = rand() * 1.0/nei;
+                # offset = 0;
                 for i in 0:nei-1
                     target = i/nei + offset;
                     id_1 = searchsortedlast(grp_1_bin, target);
-                    id_2 = searchsortedlast(grp_2_bin*grp_1_prob[col], target-grp_1_bin[col]);
+                    id_2 = searchsortedlast(grp_2_bin*grp_1_prob[id_1], target-grp_1_bin[id_1]);
 
                     @assert roid[srid[grp_1[id_1]]] != roid[srid[grp_2[id_2]]];
-
+                    @assert A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] != 1;
                     A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] = 1;
                 end
 
@@ -566,6 +567,9 @@ module StochasticCP_FMM
         #-------------------------------------------------------------------------
         # now compute the c->c and c->p
         #-------------------------------------------------------------------------
+        println(length(core_id));
+        #-------------------------------------------------------------------------
+        num_coin_flip = 0;
         for cid in core_id
             if (!haskey(dist, cid))
                 dist2cid = zeros(n);
@@ -578,10 +582,15 @@ module StochasticCP_FMM
 
             for i in 1:n
                 if (!(i in core_set && i <= cid))
+                    num_coin_flip += 1;
+                    @assert A[cid,i] == 0;
+                    @assert A[i,cid] == 0;
                     A[cid,i] = rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon) ? 1 : 0;
                 end
             end
         end
+        #-------------------------------------------------------------------------
+        println(sum(A));
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -610,6 +619,8 @@ module StochasticCP_FMM
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
         gen_e!(fmm_tree, 1, bt, epsilon, roid, srid, A);
+        #-------------------------------------------------------------------------
+        println(sum(A));
         #-------------------------------------------------------------------------
 
         return A + A';
