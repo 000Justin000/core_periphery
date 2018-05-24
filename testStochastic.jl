@@ -246,7 +246,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                  legend=false,
                                  color="black",
                                  linewidth=0.10,
-                                 alpha=0.15);
+                                 alpha=1.00);
                     end
                     #------------------------------------------------
                 end
@@ -591,7 +591,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         D = Euclidean_matrix(coordinates);
         C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-         epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));

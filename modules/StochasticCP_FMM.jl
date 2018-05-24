@@ -485,10 +485,13 @@ module StochasticCP_FMM
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
+                @assert roid[srid[idx_1]] != roid[srid[idx_2]];
+
                 A[roid[srid[idx_1]], roid[srid[idx_2]]] = rand() < (cmp[idx_1].m * cmp[idx_2].m)/((cmp[idx_1].m * cmp[idx_2].m) + distance^epsilon) ? 1 : 0;
             elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
             # elseif ((sp1r + sp2r) < 1.0e-12)
-                ne = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
+                nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
+                nei = Int64(floor(nef) + rand() < (nef - floor(nef)) ? 1 : 0);
                 # generate ne edges between this two group of nodes
                 grp_1 = subtree_range(idx_1,n_node);
                 grp_2 = subtree_range(idx_2,n_node);
@@ -502,11 +505,19 @@ module StochasticCP_FMM
                 grp_1_prob = (grp_1_mass .* grp_2_mass0) ./ (grp_1_mass .* grp_2_mass0 + distance^epsilon); grp_1_prob /= sum(grp_1_prob);
                 grp_2_prob = (grp_2_mass .* grp_1_mass0) ./ (grp_2_mass .* grp_1_mass0 + distance^epsilon); grp_2_prob /= sum(grp_2_prob);
 
-                grp_1_nodes = wsample(grp_1, grp_1_prob, Int64(floor(ne)), replace=true);
-                grp_2_nodes = wsample(grp_2, grp_2_prob, Int64(floor(ne)), replace=true);
+                grp_1_bin = vcat([0], cumsum(grp_1_prob)[1:end-1]);
+                grp_2_bin = vcat([0], cumsum(grp_2_prob)[1:end-1]);
 
-                for i in 1:ne
-                    A[roid[srid[grp_1_nodes[i]]], roid[srid[grp_2_nodes[i]]]] = 1;
+                # offset = rand() * 1.0/nei;
+                offset = 0;
+                for i in 0:nei-1
+                    target = i/nei + offset;
+                    id_1 = searchsortedlast(grp_1_bin, target);
+                    id_2 = searchsortedlast(grp_2_bin*grp_1_prob[col], target-grp_1_bin[col]);
+
+                    @assert roid[srid[grp_1[id_1]]] != roid[srid[grp_2[id_2]]];
+
+                    A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] = 1;
                 end
 
                 cmp[end].m += 1;
@@ -566,7 +577,7 @@ module StochasticCP_FMM
             end
 
             for i in 1:n
-                if (!(i in core_set && i < cid))
+                if (!(i in core_set && i <= cid))
                     A[cid,i] = rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon) ? 1 : 0;
                 end
             end
