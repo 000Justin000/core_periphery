@@ -478,10 +478,11 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
 
     if (epsilon > 0)
         D = Haversine_matrix(coordinates);
-        # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # @time C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        # B = StochasticCP.model_gen(C, D, epsilon);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
@@ -688,7 +689,7 @@ function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
     epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
-    epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd(C, coords, CoM2, dist, epsilon, bt, ratio);
+    epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
 
     order = sortperm(C, rev=false);
     h = plot(epd_real[order]);
@@ -696,5 +697,60 @@ function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     plot!(h, epd[order] - epd_real[order]);
 
     return h, epd, srd, fmm_tree;
+end
+#----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
+function timeit(n, metric, CoM2, epsilon)
+    coords = rand(2,n);
+    bt = BallTree(coords, metric, leafsize=1);
+
+    #------------------------------------------------------------
+    II = Int64[];
+    JJ = Int64[];
+    VV = Float64[];
+    #------------------------------------------------------------
+    for counter in 1:10*n
+        id_1 = rand(1:n);
+        id_2 = rand(1:n);
+        if (id_1 != id_2)
+            if (id_1 > id_2)
+                id_1, id_2 = id_2, id_1
+            end
+
+            push!(II, id_1);
+            push!(JJ, id_2);
+            push!(VV, 1.0);
+        end
+    end
+    #------------------------------------------------------------
+    A = sparse(II,JJ,VV, n,n, max);
+    #------------------------------------------------------------
+    A = A + A';
+    #------------------------------------------------------------
+
+    C = ones(n) * (log(10/n)/2);
+
+    println("start");
+
+#   #------------------------------------------------------------
+#   D = zeros(n,n);
+#   #------------------------------------------------------------
+#   for j in 1:n
+#       for i in j+1:n
+#           D[i,j] = evaluate(metric, coords[:,i], coords[:,j]);
+#       end
+#   end
+#   #------------------------------------------------------------
+#   D = D + D';
+#   #------------------------------------------------------------
+
+    bt = BallTree(coords, metric, leafsize=1);
+#   dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
+#   @time (omega = StochasticCP.omega(A, C, D, epsilon);)
+#   @time (epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
+#   @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0))
+    @time epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0);
 end
 #----------------------------------------------------------------

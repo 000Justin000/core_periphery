@@ -55,7 +55,7 @@ module StochasticCP_FMM
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                 cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
                 cmp[end].m += 1;
-            elseif (distance >= 2*(sp1r + sp2r) && ((cmp[idx_1].m * cmp[idx_2].m)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].m * cmp[idx_2].m)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
                                   -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
@@ -569,7 +569,6 @@ module StochasticCP_FMM
         #-------------------------------------------------------------------------
         println(length(core_id));
         #-------------------------------------------------------------------------
-        num_coin_flip = 0;
         for cid in core_id
             if (!haskey(dist, cid))
                 dist2cid = zeros(n);
@@ -582,7 +581,6 @@ module StochasticCP_FMM
 
             for i in 1:n
                 if (!(i in core_set && i <= cid))
-                    num_coin_flip += 1;
                     @assert A[cid,i] == 0;
                     @assert A[i,cid] == 0;
                     A[cid,i] = rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon) ? 1 : 0;
