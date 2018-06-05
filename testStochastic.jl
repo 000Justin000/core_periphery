@@ -10,6 +10,7 @@ using NearestNeighbors;
 using Distances;
 using Plots; pyplot();
 using LaTeXStrings;
+using MatrixNetworks;
 
 # #----------------------------------------------------------------
 # function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
@@ -752,5 +753,62 @@ function timeit(n, metric, CoM2, epsilon)
 #   @time (epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
 #   @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0))
     @time epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0);
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num_step=1000)
+        #--------------------------------------------------------
+        dis(i,j) = min(max(i,j) - min(i,j), min(i,j)+n - max(i,j));
+        rd(i) = mod(i-1+n,n) + 1;
+
+        A = spzeros(n,n);
+        for i in 1:n
+            for j in 1:m
+                if (rand() < beta)
+                    k = 0;
+                    while ((k = rand(1:n)) == i)
+                        # do nothing
+                    end
+
+                    A[i,k] = 1;
+                    A[k,i] = 1;
+                else
+                    A[i,rd(i-j)] = 1;
+                    A[rd(i-j),i] = 1;
+                end
+
+                if (rand() < beta)
+                    k = 0;
+                    while ((k = rand(1:n)) == i)
+                        # do nothing
+                    end
+
+                    A[i,k] = 1;
+                    A[k,i] = 1;
+                else
+                    A[i,rd(i+j)] = 1;
+                    A[rd(i+j),i] = 1;
+                end
+            end
+        end
+
+        D = zeros(n,n);
+        for i in 1:n
+            for j in 1:n
+                D[i,j] = dis(i,j);
+            end
+        end
+
+        opt = Dict();
+        opt["ratio"] = ratio;
+        opt["thres"] = thres;
+        opt["max_num_step"] = max_num_step;
+
+        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        B = StochasticCP.model_gen(C, D, epsilon);
+        #--------------------------------------------------------
+
+        return A, B, C, epsilon
 end
 #----------------------------------------------------------------
