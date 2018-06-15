@@ -9,6 +9,7 @@ using Colors;
 using NearestNeighbors;
 using Distances;
 using Plots; pyplot();
+# using PyPlot
 using LaTeXStrings;
 using MatrixNetworks;
 
@@ -214,9 +215,9 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     d = vec(sum(A,1));
 
     if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(d)[end-Int64(ceil(0.25*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(C)[end-Int64(ceil(0.25*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     else
         error("option not supported.");
     end
@@ -224,11 +225,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     if (option == "degree")
         println("option: degree")
         rk = sortperm(sortperm(d))
-        ms = (rk/n).^20 * 6 + 0.3;
+        ms = (rk/n).^3 * 6 + 0.3;
     elseif (option == "core_score")
         println("option: core_score")
         rk = sortperm(sortperm(C))
-        ms = (rk/n).^20 * 6 + 0.3;
+        ms = (rk/n).^3 * 6 + 0.3;
     else
         error("option not supported.");
     end
@@ -297,7 +298,8 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], label="");
+    scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], alpha=1.00);
+    #----------------------------------------------------------------
 end
 #----------------------------------------------------------------
 
@@ -514,6 +516,7 @@ function plot_openflight(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
+
 #----------------------------------------------------------------
 function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
@@ -570,6 +573,7 @@ function plot_mushroom(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
+
 #----------------------------------------------------------------
 function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
@@ -624,6 +628,109 @@ function plot_celegans(A, C, coords, option="degree", filename="output")
     return h;
 end
 #----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
+function Karate(thres=1.0e-6, max_num_step=100)
+    #--------------------------------
+    # load Karate club data
+    #--------------------------------
+    data = MAT.matread("data/karate/karate.mat");
+    #--------------------------------
+    A = data["A"];
+    pos = data["pos"];
+    com = data["com"];
+    #--------------------------------
+    @assert issymmetric(A);
+    #--------------------------------s
+    n = size(A,1);
+    #--------------------------------
+
+    #--------------------------------
+    coordinates = [];
+    coords = zeros(2,n);
+    for i in 1:n
+        push!(coordinates, pos[i,:])
+        coords[:,i] = pos[i,:]
+    end
+    #--------------------------------
+
+    #--------------------------------
+    D = ones(A)-eye(A);
+    C, epsilon = StochasticCP.model_fit(A, D, 1; opt=Dict("thres"=>1.0e-6, "max_num_step"=>100));
+    B = StochasticCP.model_gen(C, D, 1);
+    #--------------------------------
+
+    return A, B, C, D, data["com"], coordinates, epsilon;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_Karate(A, C, com, coords, option="community", filename="output")
+    h = plot(size=(800,550), title="Karate",
+                             xlabel=L"x",
+                             ylabel=L"y",
+                             grid="off",
+                             framestyle=:box);
+
+    @assert issymmetric(A);
+    n = size(A, 1);
+
+    if (option == "community")
+        color = [(i in com[2] ? colorant"#FF3333" : colorant"#33FFFF") for i in 1:n];
+    elseif (option == "core_periphery")
+        color = [(i in sortperm(C, rev=true)[1:Int64(ceil(0.55*n))] ? colorant"#FF3333" : colorant"#33FFFF") for i in 1:n];
+    else
+        error("option not supported.");
+    end
+
+    #------------------------------------------------------------
+    if (length(coords[1]) == 2)
+        #--------------------------------------------------------
+        for i in 1:n
+            for j in i+1:n
+                #------------------------------------------------
+                if (A[i,j] != 0)
+                    plot!(h, [coords[i][1], coords[j][1]],
+                             [coords[i][2], coords[j][2]],
+                             legend=false,
+                             color="grey",
+                             linewidth=0.2,
+                             alpha=1.0);
+                end
+                #------------------------------------------------
+            end
+        end
+        #--------------------------------------------------------
+    end
+    #------------------------------------------------------------
+    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=ones(n)*20, c=color, alpha=1.00);
+    #----------------------------------------------------------------
+    annotate!([(coords[i][1], coords[i][2], string(i), 15) for i in 1:n]);
+    #----------------------------------------------------------------
+
+    savefig(h, "results/" * filename * ".svg");
+
+    if (option == "community")
+        od = vcat(vec(com[2]), vec(com[1]));
+    elseif (option == "core_periphery")
+        od = sortperm(C, rev=true);
+    end
+
+    #----------------------------------------------------------------
+    R = zeros(n,n);
+    #----------------------------------------------------------------
+    for i in 1:n
+        for j in 1:n
+            R[i,j] = A[od[i], od[j]];
+        end
+    end
+    #----------------------------------------------------------------
+
+    return h, R;
+end
+#----------------------------------------------------------------
+
 
 #----------------------------------------------------------------
 function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)

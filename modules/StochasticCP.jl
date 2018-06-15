@@ -66,8 +66,7 @@ using Optim
     #---------------------------------------------------------------------------------------------
     # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
     #---------------------------------------------------------------------------------------------
-    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6,
-                                                "max_num_step"=>10000))
+    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6, "max_num_step"=>10000))
         @assert issymmetric(A);
         @assert issymmetric(D);
 
