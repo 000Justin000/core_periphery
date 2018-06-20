@@ -3,7 +3,7 @@ module StochasticCP_FMM
     using StatsBase;
     using Distances;
     using NearestNeighbors;
-    using Optim
+    using Optim;
 #   using Plots; pyplot();
 
     export model_fit, model_gen

@@ -1,17 +1,15 @@
 using StatsBase;
 using MAT;
-using NetworkGen;
+using Colors;
+using Plots; pyplot();
+using LaTeXStrings;
+using MatrixNetworks;
+using Dierckx;
+using Distances;
+using NearestNeighbors;
 using StochasticCP;
 using StochasticCP_SGD;
 using StochasticCP_FMM;
-using Motif;
-using Colors;
-using NearestNeighbors;
-using Distances;
-using Plots; pyplot();
-# using PyPlot
-using LaTeXStrings;
-using MatrixNetworks;
 
 # #----------------------------------------------------------------
 # function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
@@ -353,6 +351,63 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
+function hist_openflight_probE(A, B, D)
+    @assert issymmetric(A);
+    @assert issymmetric(B);
+    @assert issymmetric(D);
+
+    n = size(A,1);
+    AS = Array{Float64,1}();
+    BS = Array{Float64,1}();
+    DS = Array{Float64,1}();
+
+    #------------------------------------------------------------
+    for i in 1:n
+        for j in i+1:n
+            #----------------------------------------------------
+            if (A[i,j] == 1)
+                push!(AS, D[i,j]);
+            end
+            #----------------------------------------------------
+            if (B[i,j] == 1)
+                push!(BS, D[i,j]);
+            end
+            #----------------------------------------------------
+            push!(DS, D[i,j]);
+            #----------------------------------------------------
+        end
+    end
+    #------------------------------------------------------------
+
+    Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7);
+    Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7);
+    Dhist = fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7);
+
+    Aprob = Spline1D(0.5e6:1.0e6:2.05e7, Ahist.weights./Dhist.weights * 100; k = 3);
+    Bprob = Spline1D(0.5e6:1.0e6:2.05e7, Bhist.weights./Dhist.weights * 100; k = 3);
+
+    h = plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
+                                                 ylabel=L"\rm{edge\ probability\ (\%)}",
+                                                 xlim=(0.0e7, 2.1e7),
+                                                 ylim=(-0.05, 1.05),
+                                                 xticks=0:3.0e6:2.1e7,
+                                                 yticks=0:0.2:1.2,
+                                                 framestyle=:box,
+                                                 grid="on");
+
+    plot!(h, 0.5e6:0.1e6:2.05e7, Aprob(0.5e6:0.1e6:2.05e7), label="", linewidth=2.0, linestyle=:dot, color="red");
+    plot!(h, 0.5e6:0.1e6:2.05e7, Bprob(0.5e6:0.1e6:2.05e7), label="", linewidth=2.0, linestyle=:dot, color="blue");
+
+    scatter!(h, 0.5e6:1.0e6:2.05e7, Ahist.weights./Dhist.weights * 100, label="original",  color="red",  ms=7);
+    scatter!(h, 0.5e6:1.0e6:2.05e7, Bhist.weights./Dhist.weights * 100, label="generated", color="blue", ms=7);
+
+    savefig(h, "results/openflight_probE.pdf");
+
+    return AS, BS, DS, h
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
 function hist_openflight()
     #--------------------------------
     # load airport data and location
@@ -474,18 +529,20 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     end
     #--------------------------------
 
-    opt = Dict()
+    opt = Dict();
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
 
     if (epsilon > 0)
-        D = Haversine_matrix(coordinates);
+        # D = Haversine_matrix(coordinates);
         # @time C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # B = StochasticCP.model_gen(C, D, epsilon);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine_offset(6371e3, 0.0), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine_offset(6371e3, 0.0), epsilon; opt=opt);
+        D = nothing;
+        # B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
@@ -596,8 +653,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
         C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+#       C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
@@ -631,6 +687,90 @@ end
 
 
 #----------------------------------------------------------------
+function intro_celegans(A, C, coords, option="community", filename="output")
+    h = plot(size=(800,550), title="Celegans",
+                             xlabel=L"x",
+                             ylabel=L"y",
+                             grid="off",
+                             framestyle=:box);
+
+    data = MAT.matread("data/celegans/celegans277.mat");
+    com = data["celegans277communities"];
+
+    @assert issymmetric(A);
+    n = size(A, 1);
+    d = vec(sum(A,1));
+
+    color_set = [colorant"#ff0000", colorant"#00af00", colorant"#0000ff", colorant"#ffe119", colorant"#f58231",
+                 colorant"#911eb4", colorant"#46f0f0", colorant"#fabebe", colorant"#008080", colorant"#e6beff"]
+
+    if (option == "community")
+        color = [color_set[com[i]] for i in 1:n];
+    elseif (option == "core_periphery")
+        #--------------------------------------------------------
+        vtx_sorted = sortperm(C, rev=true);
+        num_core = Int64(ceil(0.1335*n));
+        Cmax = C[vtx_sorted[1]];
+        Cmid = C[vtx_sorted[num_core]];
+        Cmin = C[vtx_sorted[end]];
+        #--------------------------------------------------------
+        Rmap = Colors.linspace(colorant"#ffe6e6", colorant"#ff0000", 100);
+        Gmap = Colors.linspace(colorant"#008000", colorant"#e6ffe6", 100);
+        Bmap = Colors.linspace(colorant"#0000ff", colorant"#e6e6ff", 100);
+        #--------------------------------------------------------
+        color = [(i in vtx_sorted[1:num_core] ? Rmap[Int64(ceil((C[i]-Cmid)/(Cmax-Cmid) * 99)) + 1]
+                                              : Bmap[Int64(ceil((C[i]-Cmin)/(Cmid-Cmin) * 99)) + 1]) for i in 1:n];
+        #--------------------------------------------------------
+    else
+        error("option not supported.");
+    end
+
+    #------------------------------------------------------------
+    if (length(coords[1]) == 2)
+        #--------------------------------------------------------
+        for i in 1:n
+            for j in i+1:n
+                #------------------------------------------------
+                if (A[i,j] != 0)
+                    plot!(h, [coords[i][1], coords[j][1]],
+                             [coords[i][2], coords[j][2]],
+                             legend=false,
+                             color="grey",
+                             linewidth=0.1,
+                             alpha=0.1);
+                end
+                #------------------------------------------------
+            end
+        end
+        #--------------------------------------------------------
+    end
+    #------------------------------------------------------------
+    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=sqrt.(d)*1.8, c=color, alpha=1.00);
+    #----------------------------------------------------------------
+
+    savefig(h, "results/" * filename * ".svg");
+
+    if (option == "community")
+        od = [i for j in 1:10 for i in shuffle(1:n) if com[i] == j];
+    elseif (option == "core_periphery")
+        od = sortperm(C, rev=true);
+    end
+
+    #----------------------------------------------------------------
+    R = zeros(n,n);
+    #----------------------------------------------------------------
+    for i in 1:n
+        for j in 1:n
+            R[i,j] = A[od[i], od[j]];
+        end
+    end
+    #----------------------------------------------------------------
+
+    return h, R;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
 function Karate(thres=1.0e-6, max_num_step=100)
     #--------------------------------
     # load Karate club data
@@ -639,7 +779,6 @@ function Karate(thres=1.0e-6, max_num_step=100)
     #--------------------------------
     A = data["A"];
     pos = data["pos"];
-    com = data["com"];
     #--------------------------------
     @assert issymmetric(A);
     #--------------------------------s
@@ -661,17 +800,20 @@ function Karate(thres=1.0e-6, max_num_step=100)
     B = StochasticCP.model_gen(C, D, 1);
     #--------------------------------
 
-    return A, B, C, D, data["com"], coordinates, epsilon;
+    return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_Karate(A, C, com, coords, option="community", filename="output")
+function intro_Karate(A, C, coords, option="community", filename="output")
     h = plot(size=(800,550), title="Karate",
                              xlabel=L"x",
                              ylabel=L"y",
                              grid="off",
                              framestyle=:box);
+
+    data = MAT.matread("data/karate/karate.mat");
+    com = data["com"];
 
     @assert issymmetric(A);
     n = size(A, 1);
