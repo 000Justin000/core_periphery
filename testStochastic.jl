@@ -379,27 +379,31 @@ function hist_openflight_probE(A, B, D)
     end
     #------------------------------------------------------------
 
-    Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7);
-    Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7);
-    Dhist = fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7);
-
-    Aprob = Spline1D(0.5e6:1.0e6:2.05e7, Ahist.weights./Dhist.weights * 100; k = 3);
-    Bprob = Spline1D(0.5e6:1.0e6:2.05e7, Bhist.weights./Dhist.weights * 100; k = 3);
+    Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+    Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+    Dhist = fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 
     h = plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
-                                                 ylabel=L"\rm{edge\ probability\ (\%)}",
-                                                 xlim=(0.0e7, 2.1e7),
-                                                 ylim=(-0.05, 1.05),
-                                                 xticks=0:3.0e6:2.1e7,
-                                                 yticks=0:0.2:1.2,
+                                                 ylabel=L"\rm{edge\ probability}",
+                                                 xlim=(3.5e+5, 2.5e+7),
+                                                 ylim=(3.0e-6, 2.5e-2),
+                                                 xscale=:log10,
+                                                 yscale=:log10,
                                                  framestyle=:box,
                                                  grid="on");
 
-    plot!(h, 0.5e6:0.1e6:2.05e7, Aprob(0.5e6:0.1e6:2.05e7), label="", linewidth=2.0, linestyle=:dot, color="red");
-    plot!(h, 0.5e6:0.1e6:2.05e7, Bprob(0.5e6:0.1e6:2.05e7), label="", linewidth=2.0, linestyle=:dot, color="blue");
+    AprobL = linreg(log10.(0.5e6:1.0e6:1.15e7), log10.((Ahist.weights./Dhist.weights)[1:12]));
+    BprobL = linreg(log10.(0.5e6:1.0e6:1.15e7), log10.((Bhist.weights./Dhist.weights)[1:12]));
 
-    scatter!(h, 0.5e6:1.0e6:2.05e7, Ahist.weights./Dhist.weights * 100, label="original",  color="red",  ms=7);
-    scatter!(h, 0.5e6:1.0e6:2.05e7, Bhist.weights./Dhist.weights * 100, label="generated", color="blue", ms=7);
+    xrange = 0.5e6:0.1e6:1.15e7;
+    AfitL = 10.^(AprobL[2] * log10.(xrange) + AprobL[1]);
+    BfitL = 10.^(BprobL[2] * log10.(xrange) + BprobL[1]);
+
+    plot!(h, xrange, AfitL, label="", color="red",  linestyle=:dot, linewidth=2.0);
+    plot!(h, xrange, BfitL, label="", color="blue", linestyle=:dot, linewidth=2.0);
+
+    scatter!(h, 0.5e6:1.0e6:1.35e7, (Ahist.weights./Dhist.weights)[1:14], label="original",  color="red",  ms=7);
+    scatter!(h, 0.5e6:1.0e6:1.35e7, (Bhist.weights./Dhist.weights)[1:14], label="generated", color="blue", ms=7);
 
     savefig(h, "results/openflight_probE.pdf");
 
@@ -539,8 +543,8 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         # @time C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # B = StochasticCP.model_gen(C, D, epsilon);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine_offset(6371e3, 0.0), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine_offset(6371e3, 0.0), epsilon; opt=opt);
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
         # B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
@@ -572,6 +576,87 @@ function plot_openflight(A, C, coords, option="degree", filename="output")
     return h;
 end
 #----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+    #--------------------------------
+    # load airport data and location
+    #--------------------------------
+    brightkite_dat = readdlm("data/brightkite/Brightkite_totalCheckins.txt");
+    num_checkins = size(brightkite_dat,1);
+
+    #--------------------------------
+    no2id = Dict{Int64, Int64}();
+    id2no = Dict{Int64, Int64}();
+    id2lc = Dict{Int64, Array{Float64,1}}();
+    #--------------------------------
+    # only keep the last check in location
+    #--------------------------------
+    num_people = 0;
+    #--------------------------------
+    for i in num_checkins:-1:1
+        if (!(brightkite_dat[i,1] in keys(id2no)))
+            num_people += 1;
+            no2id[num_people] = brightkite_dat[i,1];
+            id2no[brightkite_dat[i,1]] = num_people;
+        end
+
+        id2lc[brightkite_dat[i,1]] = brightkite_dat[i,3:4];
+    end
+    #--------------------------------
+
+    #--------------------------------
+    W = spzeros(num_people,num_people);
+    #--------------------------------
+    # the adjacency matrix
+    #--------------------------------
+    edges_dat = convert(Array{Int64,2}, readdlm("data/brightkite/Brightkite_edges.txt"));
+    num_edges = size(edges_dat,1);
+    for i in 1:num_edges
+        id1 = edges_dat[i,1];
+        id2 = edges_dat[i,2];
+        if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
+            W[id2no[id1], id2no[id2]] += 1;
+        end
+    end
+    #--------------------------------
+    W = W + W';
+    #--------------------------------
+    A = spones(sparse(W));
+    #--------------------------------
+
+    #--------------------------------
+    # compute coordinates
+    #--------------------------------
+    coordinates = [];
+    coords = zeros(2,num_people);
+    for i in 1:num_people
+        coord = id2lc[no2id[i]];
+        coord = coord + rand(2);
+        coord[1] = min(90, max(-90, coord[1]));
+        coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
+        push!(coordinates, coord);
+        coords[:,i] = flipdim(coord,1);
+    end
+    #--------------------------------
+
+    opt = Dict();
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["max_num_step"] = max_num_step;
+
+    if (epsilon > 0)
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine_offset(6371e3,0e3), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3,0e3), epsilon; opt=opt);
+        D = nothing;
+    else
+        error("option not supported.");
+    end
+
+    return A, B, C, D, coordinates, epsilon;
+end
+#----------------------------------------------------------------
+
 
 
 #----------------------------------------------------------------
