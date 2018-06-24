@@ -646,8 +646,8 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["max_num_step"] = max_num_step;
 
     if (epsilon > 0)
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine_offset(6371e3,0e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine_offset(6371e3,0e3), epsilon; opt=opt);
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
