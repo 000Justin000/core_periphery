@@ -213,9 +213,9 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     d = vec(sum(A,1));
 
     if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.25*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(d)[end-Int64(ceil(0.03*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.25*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(C)[end-Int64(ceil(0.03*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     else
         error("option not supported.");
     end
@@ -223,11 +223,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     if (option == "degree")
         println("option: degree")
         rk = sortperm(sortperm(d))
-        ms = (rk/n).^3 * 6 + 0.3;
+        ms = (rk/n).^20 * 6 + 1.5;
     elseif (option == "core_score")
         println("option: core_score")
         rk = sortperm(sortperm(C))
-        ms = (rk/n).^3 * 6 + 0.3;
+        ms = (rk/n).^20 * 6 + 1.5;
     else
         error("option not supported.");
     end
@@ -296,7 +296,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], alpha=1.00);
+    scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], alpha=1.00, label="");
     #----------------------------------------------------------------
 end
 #----------------------------------------------------------------
@@ -647,13 +647,29 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
 
     if (epsilon > 0)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine_offset(6371e3,0e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3,0e3), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine_offset(6371e3,0e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
     end
 
     return A, B, C, D, coordinates, epsilon;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_brightkite(A, C, coords, option="degree", filename="output")
+    h = plot(size=(800,450), title="Brightkite",
+                             xlabel=L"\rm{Longitude}(^\circ)",
+                             ylabel=L"\rm{Latitude}(^\circ)",
+                             framestyle=:box);
+
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+                        plot_links=false,
+                        distance="Haversine")
+
+    savefig(h, "results/" * filename * ".pdf");
+    return h;
 end
 #----------------------------------------------------------------
 
@@ -1004,8 +1020,8 @@ end
 #----------------------------------------------------------------
 function plot_facebook(A, C, coords, option="degree", filename="output")
     h = plot(size=(600,600), title="Facebook",
-                               xlabel=L"status",
-                               ylabel=L"year");
+                             xlabel=L"status",
+                             ylabel=L"year");
 
     plot_core_periphery(h, A, C, [[(coord[2] >=    0 ? coord[2] :    0) + (rand()-0.5)*0.3,
                                    (coord[7] >= 1999 ? coord[7] : 1999) + (rand()-0.5)*0.3] for coord in coords], option;
@@ -1013,6 +1029,80 @@ function plot_facebook(A, C, coords, option="degree", filename="output")
                         distance="Euclidean")
 
     savefig(h, "results/" * filename * ".pdf");
+    return h;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_algo(sigma, num_vertices)
+    h = plot(size=(600,600), title="",
+                             xlabel=L"x",
+                             ylabel=L"y",
+                             xlim=(0.0, 1.0),
+                             ylim=(0.0, 1.0),
+                             grid="off",
+                             framestyle=:none);
+
+    centers = [[0.10, 0.65], [0.30, 0.65], [0.60, 0.65], [0.80, 0.65],
+               [0.10, 0.35], [0.30, 0.35], [0.60, 0.35], [0.80, 0.35]];
+    ctypes = [colorant"#00a0ff", colorant"#00e0ff", colorant"#ffa000", colorant"#ffe000",
+              colorant"#0060ff", colorant"#0020ff", colorant"#ff6000", colorant"#ff2000"];
+
+    coords = [];
+    colors = [];
+
+    for i in 1:8
+        for j in 1:num_vertices[i]
+            push!(coords, centers[i]+randn(2)*sigma);
+            push!(colors, ctypes[i]);
+        end
+    end
+
+    n = size(coords,1);
+
+    C = ones(n) * (-3.3);
+    D = Euclidean_matrix(coords);
+    A = StochasticCP.model_gen(C, D, 2);
+
+    #------------------------------------------------------------
+    if (length(coords[1]) == 2)
+        #--------------------------------------------------------
+        for i in 1:n
+            for j in i+1:n
+                #------------------------------------------------
+                if ((A[i,j] != 0) && (colors[i] != colors[j]))
+                    if ((colors[i] == ctypes[1] && colors[j] == ctypes[2]) ||
+                        (colors[i] == ctypes[3] && colors[j] == ctypes[4]) ||
+                        (colors[i] == ctypes[5] && colors[j] == ctypes[6]) ||
+                        (colors[i] == ctypes[7] && colors[j] == ctypes[8]))
+                        plot!(h, [coords[i][1], coords[j][1]],
+                                 [coords[i][2], coords[j][2]],
+                                 legend=false,
+                                 color="black",
+                                 linewidth=1.0,
+                                 linestyle=:dash,
+                                 alpha=0.3);
+                    else
+                        plot!(h, [coords[i][1], coords[j][1]],
+                                 [coords[i][2], coords[j][2]],
+                                 legend=false,
+                                 color="black",
+                                 linewidth=0.5,
+                                 linestyle=:solid,
+                                 alpha=0.15);
+                    end
+                end
+                #------------------------------------------------
+            end
+        end
+        #--------------------------------------------------------
+    end
+    #------------------------------------------------------------
+    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=6, c=colors, alpha=1.00);
+    #----------------------------------------------------------------
+
+    savefig(h, "results/algo_network.svg");
+
     return h;
 end
 #----------------------------------------------------------------
