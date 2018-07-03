@@ -1109,10 +1109,30 @@ end
 
 
 #----------------------------------------------------------------
-function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
+function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
+
+    #-----------------------------------------------------------------------------
+    # \sum_{ij in E} -log_Dij
+    #-----------------------------------------------------------------------------
+    I,J,V = findnz(A);
+    #-----------------------------------------------------------------------------
+    sum_logD_inE = 0.0
+    #-----------------------------------------------------------------------------
+    for (i,j) in zip(I,J)
+        #---------------------------------------------------------------------
+        if (i < j)
+            sum_logD_inE += log(Distances.evaluate(metric, coords[:,i], coords[:,j]))
+        end
+        #---------------------------------------------------------------------
+    end
+    #-----------------------------------------------------------------------------
+
+    omega_real = StochasticCP.omega(A, C, D, epsilon);
+    omega = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
+
     epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
     epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
 
@@ -1121,7 +1141,7 @@ function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     plot!(h, epd[order]);
     plot!(h, epd[order] - epd_real[order]);
 
-    return h, epd, srd, fmm_tree;
+    return h, fmm_tree, omega_real, omega;
 end
 #----------------------------------------------------------------
 
@@ -1220,11 +1240,11 @@ function plot_timings()
     exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
     scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
-    plot!(h, size, exp_omega, label=L"|V| \log |V|", color="red", linestyle=:dash, linewidth=2.1);
+    plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
     scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
-    plot!(h, size, exp_deriv, label=L"|V| \log |V|", color="blue", linestyle=:dash, linewidth=2.1);
+    plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
     scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
-    plot!(h, size, exp_gener, label=L"|V| \log |V|^2", color="green", linestyle=:dash, linewidth=2.1);
+    plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
 
     scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
     scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
