@@ -15,26 +15,28 @@ module StochasticCP_FMM
     mutable struct Particle
         CoM::Vector{Float64}
         m::Float64
+        maxm::Float64
         pot_1::Float64
         pot_2::Float64
     end
     #-----------------------------------------------------------------------------
-
 
     #-----------------------------------------------------------------------------
     # recursively compute the center of mass of each node
     #-----------------------------------------------------------------------------
     function fill_cm!(cmp, idx, bt, ms, roid, srid, CoM2)
         if (idx > bt.tree_data.n_internal_nodes)
-            cmp[idx] = Particle(convert(Vector{Float64}, bt.hyper_spheres[idx].center), ms[roid[srid[idx]]], 0.0, 0.0);
+            cmp[idx] = Particle(convert(Vector{Float64}, bt.hyper_spheres[idx].center),
+                                ms[roid[srid[idx]]], ms[roid[srid[idx]]], 0.0, 0.0);
         else
             if (idx*2+1 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs)
                 fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2);
                 fill_cm!(cmp, idx*2+1, bt, ms, roid, srid, CoM2);
-                cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m), cmp[idx*2].m + cmp[idx*2+1].m, 0.0, 0.0);
+                cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m),
+                                    cmp[idx*2].m+cmp[idx*2+1].m, max(cmp[idx*2].maxm, cmp[idx*2+1].maxm), 0.0, 0.0);
             elseif (idx*2 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs)
                 fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2);
-                cmp[idx] = Particle(cmp[idx*2].CoM, cmp[idx*2].m, cmp[idx*2].pot_1, cmp[idx*2].pot_2);
+                cmp[idx] = Particle(cmp[idx*2].CoM, cmp[idx*2].m, cmp[idx*2].m, cmp[idx*2].pot_1, cmp[idx*2].pot_2);
             end
         end
     end
@@ -55,7 +57,7 @@ module StochasticCP_FMM
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                 cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].m * cmp[idx_2].m)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
                                   -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
@@ -155,35 +157,13 @@ module StochasticCP_FMM
 
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
         acc_p!(fmm_tree, 1, bt, epsilon);
         #-------------------------------------------------------------------------
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
-
-#        #-------------------------------------------------------------------------
-#        fmm_tree = Array{Particle,1}(ni+nl+1);
-#        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-#        #-------------------------------------------------------------------------
-#        fill_cm!(fmm_tree, 1, bt, ms.^2, roid, srid, CoM2);
-#        acc_p!(fmm_tree, 1, bt, epsilon*2);
-#        #-------------------------------------------------------------------------
-#        omega -= (-1/2)*fmm_tree[end].pot_1;
-#        #-------------------------------------------------------------------------
-#        println(omega);
-#
-#        #-------------------------------------------------------------------------
-#        fmm_tree = Array{Particle,1}(ni+nl+1);
-#        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-#        #-------------------------------------------------------------------------
-#        fill_cm!(fmm_tree, 1, bt, ms.^3, roid, srid, CoM2);
-#        acc_p!(fmm_tree, 1, bt, epsilon*3);
-#        #-------------------------------------------------------------------------
-#        omega -= (1/3)*fmm_tree[end].pot_1;
-#        #-------------------------------------------------------------------------
-#        println(omega);
 
         return omega;
     end
@@ -361,7 +341,7 @@ module StochasticCP_FMM
         ms = exp.(C); ms[core_id] = 0;
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -641,7 +621,7 @@ module StochasticCP_FMM
         ms = exp.(C); ms[core_id] = 0;
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------

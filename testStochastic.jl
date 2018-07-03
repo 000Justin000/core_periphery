@@ -1197,7 +1197,7 @@ function plot_timings()
     size = [1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6];
     #------------------------------------------------------------
     ori_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
-    fmm_omega = [0.001242, 0.033471,  0.623837,    9.755761,    139.776619];
+    fmm_omega = [0.000610, 0.008427,  0.087300,    1.203448,     12.367116];
     #------------------------------------------------------------
     ori_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
     fmm_deriv = [0.001503, 0.023390,  0.286124,    3.228055,     39.302156];
@@ -1209,22 +1209,22 @@ function plot_timings()
     h = plot(size=(600,450), title="Timings", xlabel="number of vertices",
                                               ylabel="time per function call (sec)",
                                               xlim=(10^(+1.7), 10^(+6.3)),
-                                              ylim=(10^(-3.3), 10^(+3.3)),
+                                              ylim=(10^(-3.7), 10^(+2.7)),
                                               xscale=:log10,
                                               yscale=:log10,
                                               framestyle=:box,
                                               grid="on");
 
-    exp_omega = (size .* log.(size).^2) * (fmm_omega[1] / (size[1] * log(size[1])^2));
+    exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
     exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
     exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
     scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
-    plot!(h, size, exp_omega, label=L"|V| \log |V|^2", color="red", linestyle=:dash, linewidth=2.0);
+    plot!(h, size, exp_omega, label=L"|V| \log |V|", color="red", linestyle=:dash, linewidth=2.1);
     scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
-    plot!(h, size, exp_deriv, label=L"|V| \log |V|", color="blue", linestyle=:dash, linewidth=2.0);
+    plot!(h, size, exp_deriv, label=L"|V| \log |V|", color="blue", linestyle=:dash, linewidth=2.1);
     scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
-    plot!(h, size, exp_gener, label=L"|V| \log |V|^2", color="green", linestyle=:dash, linewidth=2.0);
+    plot!(h, size, exp_gener, label=L"|V| \log |V|^2", color="green", linestyle=:dash, linewidth=2.1);
 
     scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
     scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
