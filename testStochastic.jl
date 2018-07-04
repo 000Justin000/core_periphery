@@ -1141,6 +1141,7 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     plot!(h, epd[order]);
     plot!(h, epd[order] - epd_real[order]);
 
+
     return h, fmm_tree, omega_real, omega;
 end
 #----------------------------------------------------------------
