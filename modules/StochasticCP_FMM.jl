@@ -15,26 +15,28 @@ module StochasticCP_FMM
     mutable struct Particle
         CoM::Vector{Float64}
         m::Float64
+        maxm::Float64
         pot_1::Float64
         pot_2::Float64
     end
     #-----------------------------------------------------------------------------
-
 
     #-----------------------------------------------------------------------------
     # recursively compute the center of mass of each node
     #-----------------------------------------------------------------------------
     function fill_cm!(cmp, idx, bt, ms, roid, srid, CoM2)
         if (idx > bt.tree_data.n_internal_nodes)
-            cmp[idx] = Particle(convert(Vector{Float64}, bt.hyper_spheres[idx].center), ms[roid[srid[idx]]], 0.0, 0.0);
+            cmp[idx] = Particle(convert(Vector{Float64}, bt.hyper_spheres[idx].center),
+                                ms[roid[srid[idx]]], ms[roid[srid[idx]]], 0.0, 0.0);
         else
             if (idx*2+1 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs)
                 fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2);
                 fill_cm!(cmp, idx*2+1, bt, ms, roid, srid, CoM2);
-                cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m), cmp[idx*2].m + cmp[idx*2+1].m, 0.0, 0.0);
+                cmp[idx] = Particle(CoM2(cmp[idx*2].CoM,cmp[idx*2+1].CoM, cmp[idx*2].m,cmp[idx*2+1].m),
+                                    cmp[idx*2].m+cmp[idx*2+1].m, max(cmp[idx*2].maxm, cmp[idx*2+1].maxm), 0.0, 0.0);
             elseif (idx*2 <= bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs)
                 fill_cm!(cmp, idx*2,   bt, ms, roid, srid, CoM2);
-                cmp[idx] = Particle(cmp[idx*2].CoM, cmp[idx*2].m, cmp[idx*2].pot_1, cmp[idx*2].pot_2);
+                cmp[idx] = Particle(cmp[idx*2].CoM, cmp[idx*2].m, cmp[idx*2].m, cmp[idx*2].pot_1, cmp[idx*2].pot_2);
             end
         end
     end
@@ -55,7 +57,7 @@ module StochasticCP_FMM
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                 cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].m * cmp[idx_2].m)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
                                   -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
@@ -155,35 +157,13 @@ module StochasticCP_FMM
 
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
         acc_p!(fmm_tree, 1, bt, epsilon);
         #-------------------------------------------------------------------------
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
-
-#        #-------------------------------------------------------------------------
-#        fmm_tree = Array{Particle,1}(ni+nl+1);
-#        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-#        #-------------------------------------------------------------------------
-#        fill_cm!(fmm_tree, 1, bt, ms.^2, roid, srid, CoM2);
-#        acc_p!(fmm_tree, 1, bt, epsilon*2);
-#        #-------------------------------------------------------------------------
-#        omega -= (-1/2)*fmm_tree[end].pot_1;
-#        #-------------------------------------------------------------------------
-#        println(omega);
-#
-#        #-------------------------------------------------------------------------
-#        fmm_tree = Array{Particle,1}(ni+nl+1);
-#        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
-#        #-------------------------------------------------------------------------
-#        fill_cm!(fmm_tree, 1, bt, ms.^3, roid, srid, CoM2);
-#        acc_p!(fmm_tree, 1, bt, epsilon*3);
-#        #-------------------------------------------------------------------------
-#        omega -= (1/3)*fmm_tree[end].pot_1;
-#        #-------------------------------------------------------------------------
-#        println(omega);
 
         return omega;
     end
@@ -361,7 +341,7 @@ module StochasticCP_FMM
         ms = exp.(C); ms[core_id] = 0;
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -481,7 +461,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # generate edges between points within two hyper_spheres
     #-----------------------------------------------------------------------------
-    function gen_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, A)
+    function gen_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, I,J,V)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
@@ -491,11 +471,12 @@ module StochasticCP_FMM
             sp2r = bt.hyper_spheres[idx_2].r
             #-----------------------------------------------------------------
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
-                @assert roid[srid[idx_1]] != roid[srid[idx_2]];
-                if (A[roid[srid[idx_1]], roid[srid[idx_2]]] != 1)
-                    A[roid[srid[idx_1]], roid[srid[idx_2]]] = rand() < (cmp[idx_1].m * cmp[idx_2].m)/((cmp[idx_1].m * cmp[idx_2].m) + distance^epsilon) ? 1 : 0;
+                if (rand() < (cmp[idx_1].m * cmp[idx_2].m)/((cmp[idx_1].m * cmp[idx_2].m) + distance^epsilon))
+                    push!(I,roid[srid[idx_1]]);
+                    push!(J,roid[srid[idx_2]]);
+                    push!(V,1.0);
                 end
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
+            elseif (distance >= max(epsilon*3, 2)*(sp1r + sp2r))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 nei = Int64(floor(nef) + rand() < (nef - floor(nef)) ? 1 : 0);
@@ -512,28 +493,46 @@ module StochasticCP_FMM
                 grp_1_prob = (grp_1_mass .* grp_2_mass0) ./ (grp_1_mass .* grp_2_mass0 + distance^epsilon); grp_1_prob /= sum(grp_1_prob);
                 grp_2_prob = (grp_2_mass .* grp_1_mass0) ./ (grp_2_mass .* grp_1_mass0 + distance^epsilon); grp_2_prob /= sum(grp_2_prob);
 
-                grp_1_bin = vcat([0], cumsum(grp_1_prob)[1:end-1]);
-                grp_2_bin = vcat([0], cumsum(grp_2_prob)[1:end-1]);
+                #--------------------------------------------------
+                # ball dropping
+                #--------------------------------------------------
+                grp_1_ids = sample(grp_1, Weights(grp_1_prob), nei, replace=true); # sample nei nodes from grp_1 with grp_1_prob
+                grp_2_ids = sample(grp_2, Weights(grp_2_prob), nei, replace=true); # sample nei nodes from grp_2 with grp_2_prob
 
-                offset = rand() * 1.0/nei;
-                # offset = 0;
-                for i in 0:nei-1
-                    target = i/nei + offset;
-                    id_1 = searchsortedlast(grp_1_bin, target);
-                    id_2 = searchsortedlast(grp_2_bin*grp_1_prob[id_1], target-grp_1_bin[id_1]);
-
-                    @assert roid[srid[grp_1[id_1]]] != roid[srid[grp_2[id_2]]];
-                    @assert A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] != 1;
-                    A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] = 1;
+                for i in 1:nei
+                    push!(I,roid[srid[grp_1_ids[i]]]);
+                    push!(J,roid[srid[grp_2_ids[i]]]);
+                    push!(V,1.0);
                 end
+                #--------------------------------------------------
+
+
+#               #--------------------------------------------------
+#               # grass hopping
+#               #--------------------------------------------------
+#               grp_1_bin = vcat([0], cumsum(grp_1_prob)[1:end-1]);
+#               grp_2_bin = vcat([0], cumsum(grp_2_prob)[1:end-1]);
+#               #--------------------------------------------------
+#               offset = rand() * 1.0/nei;
+#               #--------------------------------------------------
+#               for i in 0:nei-1
+#                   target = i/nei + offset;
+#                   id_1 = searchsortedlast(grp_1_bin, target);
+#                   id_2 = searchsortedlast(grp_2_bin*grp_1_prob[id_1], target-grp_1_bin[id_1]);
+
+#                   @assert roid[srid[grp_1[id_1]]] != roid[srid[grp_2[id_2]]];
+#                   @assert A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] != 1;
+#                   A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] = 1;
+#               end
+#               #--------------------------------------------------
 
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
-                gen_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, A);
-                gen_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, A);
+                gen_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, I,J,V);
+                gen_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, I,J,V);
             else
-                gen_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, A);
-                gen_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, A);
+                gen_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, I,J,V);
+                gen_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, I,J,V);
             end
         end
     end
@@ -542,11 +541,11 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # recursively generate edges at each level of the tree
     #-----------------------------------------------------------------------------
-    function gen_e!(cmp, idx, bt, epsilon, roid, srid, A)
+    function gen_e!(cmp, idx, bt, epsilon, roid, srid, I,J,V)
         if (idx <= bt.tree_data.n_internal_nodes)
-            gen_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, A);
-            gen_e!(cmp,  idx*2,          bt, epsilon, roid, srid, A);
-            gen_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, A);
+            gen_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, I,J,V);
+            gen_e!(cmp,  idx*2,          bt, epsilon, roid, srid, I,J,V);
+            gen_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, I,J,V);
         end
     end
     #-----------------------------------------------------------------------------
@@ -561,8 +560,11 @@ module StochasticCP_FMM
                        epsilon = 1;
                        opt = Dict("ratio"=>1.0))
 
+        I = Vector{Int64}();
+        J = Vector{Int64}();
+        V = Vector{Float64}();
+
         n = length(C);
-        A = spzeros(n,n)
 
         dist = Dict{Int64,Array{Float64,1}}();
         bt = BallTree(coords, metric, leafsize=1);
@@ -573,7 +575,7 @@ module StochasticCP_FMM
         #-------------------------------------------------------------------------
         # now compute the c->c and c->p
         #-------------------------------------------------------------------------
-        println(length(core_id));
+        # println(length(core_id));
         #-------------------------------------------------------------------------
         for cid in core_id
             if (!haskey(dist, cid))
@@ -587,14 +589,16 @@ module StochasticCP_FMM
 
             for i in 1:n
                 if (!(i in core_set && i <= cid))
-                    @assert A[cid,i] == 0;
-                    @assert A[i,cid] == 0;
-                    A[cid,i] = rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon) ? 1 : 0;
+                    if (rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon))
+                        push!(I, cid);
+                        push!(J, i);
+                        push!(V, 1.0);
+                    end
                 end
             end
         end
         #-------------------------------------------------------------------------
-        println(sum(A));
+        # println(sum(A));
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -617,15 +621,17 @@ module StochasticCP_FMM
         ms = exp.(C); ms[core_id] = 0;
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
-        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0);
+        fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        gen_e!(fmm_tree, 1, bt, epsilon, roid, srid, A);
+        gen_e!(fmm_tree, 1, bt, epsilon, roid, srid, I,J,V);
         #-------------------------------------------------------------------------
-        println(sum(A));
+        # println(sum(A));
         #-------------------------------------------------------------------------
+
+        A = sparse(I,J,V, n,n,max);
 
         return A + A';
     end

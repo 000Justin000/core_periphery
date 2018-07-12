@@ -1109,10 +1109,30 @@ end
 
 
 #----------------------------------------------------------------
-function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
+function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
+
+    #-----------------------------------------------------------------------------
+    # \sum_{ij in E} -log_Dij
+    #-----------------------------------------------------------------------------
+    I,J,V = findnz(A);
+    #-----------------------------------------------------------------------------
+    sum_logD_inE = 0.0
+    #-----------------------------------------------------------------------------
+    for (i,j) in zip(I,J)
+        #---------------------------------------------------------------------
+        if (i < j)
+            sum_logD_inE += log(Distances.evaluate(metric, coords[:,i], coords[:,j]))
+        end
+        #---------------------------------------------------------------------
+    end
+    #-----------------------------------------------------------------------------
+
+    omega_real = StochasticCP.omega(A, C, D, epsilon);
+    omega = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
+
     epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
     epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
 
@@ -1121,15 +1141,18 @@ function check(C, D, coordinates, metric, CoM2, epsilon, ratio)
     plot!(h, epd[order]);
     plot!(h, epd[order] - epd_real[order]);
 
-    return h, epd, srd, fmm_tree;
+    return h, fmm_tree, omega_real, omega;
 end
 #----------------------------------------------------------------
 
 
 #----------------------------------------------------------------
 function timeit(n, metric, CoM2, epsilon)
+    #------------------------------------------------------------
     coords = rand(2,n);
+    #------------------------------------------------------------
     bt = BallTree(coords, metric, leafsize=1);
+    #------------------------------------------------------------
 
     #------------------------------------------------------------
     II = Int64[];
@@ -1155,28 +1178,81 @@ function timeit(n, metric, CoM2, epsilon)
     A = A + A';
     #------------------------------------------------------------
 
-    C = ones(n) * (log(10/n)/2);
+    C = ones(n) * ((-0.5) * log(sqrt(3) * (n/5 - 1)));
 
     println("start");
 
-#   #------------------------------------------------------------
-#   D = zeros(n,n);
-#   #------------------------------------------------------------
-#   for j in 1:n
-#       for i in j+1:n
-#           D[i,j] = evaluate(metric, coords[:,i], coords[:,j]);
-#       end
-#   end
-#   #------------------------------------------------------------
-#   D = D + D';
-#   #------------------------------------------------------------
+    if (n <= 1.0e4)
+        #------------------------------------------------------------
+        D = zeros(n,n);
+        #------------------------------------------------------------
+        for j in 1:n
+            for i in j+1:n
+                D[i,j] = Distances.evaluate(metric, coords[:,i], coords[:,j]);
+            end
+        end
+        #------------------------------------------------------------
+        D = D + D';
+        #------------------------------------------------------------
+        @time (omega = StochasticCP.omega(A, C, D, epsilon);)
+#       @time (epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
+#       @time (B_ori = StochasticCP.model_gen(C, D, epsilon));
+    end
 
-    bt = BallTree(coords, metric, leafsize=1);
-#   dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
-#   @time (omega = StochasticCP.omega(A, C, D, epsilon);)
-#   @time (epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
-#   @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0))
-    @time epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0);
+    @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
+#   @time (epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0));
+#   @time (B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0)));
+
+#   if (n <= 1.0e4)
+#       return countnz(B_ori)/n^2, countnz(B_fmm)/n^2;
+#   else
+#       return countnz(B_fmm)/n^2;
+#   end
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_timings()
+    #------------------------------------------------------------
+    size = [1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6];
+    #------------------------------------------------------------
+    ori_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
+    fmm_omega = [0.000610, 0.008427,  0.087300,    1.203448,     12.367116];
+    #------------------------------------------------------------
+    ori_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
+    fmm_deriv = [0.001503, 0.023390,  0.286124,    3.228055,     39.302156];
+    #------------------------------------------------------------
+    ori_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
+    fmm_gener = [0.003978, 0.103288,  1.768498,   22.576165,   256.542071];
+    #------------------------------------------------------------
+
+    h = plot(size=(600,450), title="Timings", xlabel="number of vertices",
+                                              ylabel="time per function call (sec)",
+                                              xlim=(10^(+1.7), 10^(+6.3)),
+                                              ylim=(10^(-3.7), 10^(+2.7)),
+                                              xscale=:log10,
+                                              yscale=:log10,
+                                              framestyle=:box,
+                                              grid="on");
+
+    exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
+    exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
+    exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
+
+    scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
+    plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
+    scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
+    plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
+    scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
+    plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
+
+    scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
+    scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
+    scatter!(h, size, fmm_gener, label="", color="green", ms=8);
+
+    savefig(h, "results/fmm_timings.pdf");
+
+    return h
 end
 #----------------------------------------------------------------
 
