@@ -1060,7 +1060,7 @@ function plot_algo(sigma, num_vertices)
 
     n = size(coords,1);
 
-    C = ones(n) * (-3.3);
+    C = ones(n) * (-4.0) + rand(n)*1.2;
     D = Euclidean_matrix(coords);
     A = StochasticCP.model_gen(C, D, 2);
 
@@ -1079,9 +1079,9 @@ function plot_algo(sigma, num_vertices)
                                  [coords[i][2], coords[j][2]],
                                  legend=false,
                                  color="black",
-                                 linewidth=1.0,
+                                 linewidth=2.0,
                                  linestyle=:dash,
-                                 alpha=0.3);
+                                 alpha=0.5);
                     else
                         plot!(h, [coords[i][1], coords[j][1]],
                                  [coords[i][2], coords[j][2]],
@@ -1098,7 +1098,7 @@ function plot_algo(sigma, num_vertices)
         #--------------------------------------------------------
     end
     #------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=6, c=colors, alpha=1.00);
+    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=C*5+23, c=colors, alpha=1.00);
     #----------------------------------------------------------------
 
     savefig(h, "results/algo_network.svg");
