@@ -1226,7 +1226,7 @@ function plot_timings()
     fmm_gener = [0.003978, 0.103288,  1.768498,   22.576165,   256.542071];
     #------------------------------------------------------------
 
-    h = plot(size=(600,600), title="Timings", xlabel="number of vertices",
+    h = plot(size=(600,500), title="Timings", xlabel="number of vertices",
                                               ylabel="time per function call (sec)",
                                               xlim=(10^(+1.7), 10^(+6.3)),
                                               ylim=(10^(-3.7), 10^(+3.7)),
@@ -1245,14 +1245,14 @@ function plot_timings()
 
     #-------------------------------------------------------------------------------------------------------------------------------------
     scatter!(h, size, fmm_omega, label="objective function (FMM)", color="red", markersize=7, markershape=:circle);
-    plot!(h, size, fmm_exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
-    plot!(h, size, ori_exp_omega, label=L"\mathcal{O}\left(|V|^{2}\right)", color="red", linestyle=:solid, linewidth=1.5);
+    plot!(h, size, fmm_exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:solid, linewidth=2.0);
+    plot!(h, size, ori_exp_omega, label=L"\mathcal{O}\left(|V|^{2}\right)", color="red", linestyle=:dash, linewidth=1.5);
     scatter!(h, size, fmm_deriv, label="derivatives (FMM)", color="blue", markersize=7, markershape=:circle);
-    plot!(h, size, fmm_exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
-    plot!(h, size, ori_exp_deriv, label=L"\mathcal{O}\left(|V|^{2}\right)", color="blue", linestyle=:solid, linewidth=1.5);
+    plot!(h, size, fmm_exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:solid, linewidth=2.0);
+    plot!(h, size, ori_exp_deriv, label=L"\mathcal{O}\left(|V|^{2}\right)", color="blue", linestyle=:dash, linewidth=1.5);
     scatter!(h, size, fmm_gener, label="network generation (FMM)", color="green", markersize=7, markershape=:circle);
-    plot!(h, size, fmm_exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
-    plot!(h, size, ori_exp_gener, label=L"\mathcal{O}\left(|V|^2\right)", color="green", linestyle=:solid, linewidth=1.5);
+    plot!(h, size, fmm_exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:solid, linewidth=2.0);
+    plot!(h, size, ori_exp_gener, label=L"\mathcal{O}\left(|V|^2\right)", color="green", linestyle=:dash, linewidth=1.5);
     #----------------------------------------------------------------------------------------
     scatter!(h, size, fmm_deriv, label="", color="blue",  markersize=7, markershape=:circle);
     scatter!(h, size, fmm_omega, label="", color="red",   markersize=7, markershape=:circle);
