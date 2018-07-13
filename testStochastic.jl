@@ -1235,31 +1235,24 @@ function plot_timings()
                                               framestyle=:box,
                                               grid="on");
 
-    ori_exp_omega = (size.^2) * (ori_omega[1] / (size[1]^2));
-    ori_exp_deriv = (size.^2) * (ori_deriv[1] / (size[1]^2));
-    ori_exp_gener = (size.^2) * (ori_gener[1] / (size[1]^2));
+    ori_exp_omega = (size.^2) * (fmm_omega[1] / (size[1]^2));
+    ori_exp_deriv = (size.^2) * (fmm_deriv[1] / (size[1]^2));
+    ori_exp_gener = (size.^2) * (fmm_gener[1] / (size[1]^2));
 
     fmm_exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
     fmm_exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
     fmm_exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
-    scatter!(h, size[1:3], ori_omega[1:3], label="objective function (naive)", color="red", markersize=7, markershape=:utriangle);
-    plot!(h, size, ori_exp_omega, label=L"\mathcal{O}\left(|V|^{2}\right)", color="red", linestyle=:dash, linewidth=1.5);
-    scatter!(h, size[1:3], ori_deriv[1:3], label="derivatives (naive)", color="blue", markersize=7, markershape=:utriangle);
-    plot!(h, size, ori_exp_deriv, label=L"\mathcal{O}\left(|V|^{2}\right)", color="blue", linestyle=:dash, linewidth=1.5);
-    scatter!(h, size[1:3], ori_gener[1:3], label="network generation (naive)", color="green", markersize=7, markershape=:utriangle);
-    plot!(h, size, ori_exp_gener, label=L"\mathcal{O}\left(|V|^2\right)", color="green", linestyle=:dash, linewidth=1.5);
     #-------------------------------------------------------------------------------------------------------------------------------------
     scatter!(h, size, fmm_omega, label="objective function (FMM)", color="red", markersize=7, markershape=:circle);
-    plot!(h, size, fmm_exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:solid, linewidth=2.0);
+    plot!(h, size, fmm_exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
+    plot!(h, size, ori_exp_omega, label=L"\mathcal{O}\left(|V|^{2}\right)", color="red", linestyle=:solid, linewidth=1.5);
     scatter!(h, size, fmm_deriv, label="derivatives (FMM)", color="blue", markersize=7, markershape=:circle);
-    plot!(h, size, fmm_exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:solid, linewidth=2.0);
+    plot!(h, size, fmm_exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
+    plot!(h, size, ori_exp_deriv, label=L"\mathcal{O}\left(|V|^{2}\right)", color="blue", linestyle=:solid, linewidth=1.5);
     scatter!(h, size, fmm_gener, label="network generation (FMM)", color="green", markersize=7, markershape=:circle);
-    plot!(h, size, fmm_exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:solid, linewidth=2.0);
-
-    scatter!(h, size[1:3], ori_deriv[1:3], label="", color="blue",  markersize=7, markershape=:utriangle);
-    scatter!(h, size[1:3], ori_omega[1:3], label="", color="red",   markersize=7, markershape=:utriangle);
-    scatter!(h, size[1:3], ori_gener[1:3], label="", color="green", markersize=7, markershape=:utriangle);
+    plot!(h, size, fmm_exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
+    plot!(h, size, ori_exp_gener, label=L"\mathcal{O}\left(|V|^2\right)", color="green", linestyle=:solid, linewidth=1.5);
     #----------------------------------------------------------------------------------------
     scatter!(h, size, fmm_deriv, label="", color="blue",  markersize=7, markershape=:circle);
     scatter!(h, size, fmm_omega, label="", color="red",   markersize=7, markershape=:circle);
