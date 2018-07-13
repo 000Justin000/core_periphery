@@ -1216,39 +1216,54 @@ function plot_timings()
     #------------------------------------------------------------
     size = [1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6];
     #------------------------------------------------------------
-    ori_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
+    ori_omega = [0.001632, 0.116223, 17.009791, 1700.000000, 170000.000000];
     fmm_omega = [0.000610, 0.008427,  0.087300,    1.203448,     12.367116];
     #------------------------------------------------------------
-    ori_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
+    ori_deriv = [0.001447, 0.171002, 26.671128, 2600.000000, 260000.000000];
     fmm_deriv = [0.001503, 0.023390,  0.286124,    3.228055,     39.302156];
     #------------------------------------------------------------
-    ori_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
+    ori_gener = [0.000486, 0.039290,  4.137897,  413.000000, 41300.000000];
     fmm_gener = [0.003978, 0.103288,  1.768498,   22.576165,   256.542071];
     #------------------------------------------------------------
 
-    h = plot(size=(600,450), title="Timings", xlabel="number of vertices",
+    h = plot(size=(600,600), title="Timings", xlabel="number of vertices",
                                               ylabel="time per function call (sec)",
                                               xlim=(10^(+1.7), 10^(+6.3)),
-                                              ylim=(10^(-3.7), 10^(+2.7)),
+                                              ylim=(10^(-3.7), 10^(+3.7)),
                                               xscale=:log10,
                                               yscale=:log10,
                                               framestyle=:box,
                                               grid="on");
 
-    exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
-    exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
-    exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
+    ori_exp_omega = (size.^2) * (ori_omega[1] / (size[1]^2));
+    ori_exp_deriv = (size.^2) * (ori_deriv[1] / (size[1]^2));
+    ori_exp_gener = (size.^2) * (ori_gener[1] / (size[1]^2));
 
-    scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
-    plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
-    scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
-    plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
-    scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
-    plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
+    fmm_exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
+    fmm_exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
+    fmm_exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
-    scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
-    scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
-    scatter!(h, size, fmm_gener, label="", color="green", ms=8);
+    scatter!(h, size[1:3], ori_omega[1:3], label="objective function (naive)", color="red", markersize=7, markershape=:utriangle);
+    plot!(h, size, ori_exp_omega, label=L"\mathcal{O}\left(|V|^{2}\right)", color="red", linestyle=:dash, linewidth=1.5);
+    scatter!(h, size[1:3], ori_deriv[1:3], label="derivatives (naive)", color="blue", markersize=7, markershape=:utriangle);
+    plot!(h, size, ori_exp_deriv, label=L"\mathcal{O}\left(|V|^{2}\right)", color="blue", linestyle=:dash, linewidth=1.5);
+    scatter!(h, size[1:3], ori_gener[1:3], label="network generation (naive)", color="green", markersize=7, markershape=:utriangle);
+    plot!(h, size, ori_exp_gener, label=L"\mathcal{O}\left(|V|^2\right)", color="green", linestyle=:dash, linewidth=1.5);
+    #-------------------------------------------------------------------------------------------------------------------------------------
+    scatter!(h, size, fmm_omega, label="objective function (FMM)", color="red", markersize=7, markershape=:circle);
+    plot!(h, size, fmm_exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:solid, linewidth=2.0);
+    scatter!(h, size, fmm_deriv, label="derivatives (FMM)", color="blue", markersize=7, markershape=:circle);
+    plot!(h, size, fmm_exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:solid, linewidth=2.0);
+    scatter!(h, size, fmm_gener, label="network generation (FMM)", color="green", markersize=7, markershape=:circle);
+    plot!(h, size, fmm_exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:solid, linewidth=2.0);
+
+    scatter!(h, size[1:3], ori_deriv[1:3], label="", color="blue",  markersize=7, markershape=:utriangle);
+    scatter!(h, size[1:3], ori_omega[1:3], label="", color="red",   markersize=7, markershape=:utriangle);
+    scatter!(h, size[1:3], ori_gener[1:3], label="", color="green", markersize=7, markershape=:utriangle);
+    #----------------------------------------------------------------------------------------
+    scatter!(h, size, fmm_deriv, label="", color="blue",  markersize=7, markershape=:circle);
+    scatter!(h, size, fmm_omega, label="", color="red",   markersize=7, markershape=:circle);
+    scatter!(h, size, fmm_gener, label="", color="green", markersize=7, markershape=:circle);
 
     savefig(h, "results/fmm_timings.pdf");
 
