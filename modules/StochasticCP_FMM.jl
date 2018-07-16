@@ -480,7 +480,7 @@ module StochasticCP_FMM
                 cmp[end].m += 1;
             elseif (distance >= max(epsilon*3, 6)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
-                nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) * 0.0 + distance^epsilon);
+                nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 nei = Int(floor(nef) + (rand() < (nef - floor(nef)) ? 1 : 0));
                 # generate ne edges between this two group of nodes
                 grp_1 = subtree_range(idx_1,n_node);
@@ -653,7 +653,7 @@ module StochasticCP_FMM
         # println(sum(A));
         #-------------------------------------------------------------------------
 
-        A = sparse(I,J,V, n,n,sum);
+        A = sparse(I,J,V, n,n,max);
 
         return A + A';
     end
