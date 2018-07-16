@@ -740,7 +740,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     data = MAT.matread("data/celegans/celegans277.mat");
 #   data = MAT.matread("data/fungal_networks/Conductance/Pv_M_5xI_U_N_35d_1.mat");
     coords = data["celegans277positions"]';
-    A = spones(sparse(data["celegans277matrix"] + data["celegans277matrix"]'));
+    A = spones(convert(SparseMatrixCSC{Float64,Int64}, sparse(data["celegans277matrix"] + data["celegans277matrix"]')));
     #--------------------------------
 
     coordinates = [[coords[1,i], coords[2,i]] for i in 1:size(coords,2)];
@@ -753,9 +753,13 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-#       C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+#       C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
+        C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+
+#       B = StochasticCP.model_gen(C, D, epsilon);
+        B0 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B1 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B2 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
@@ -766,7 +770,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B0, B1, B2, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
@@ -1137,9 +1141,20 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
 
     order = sortperm(C, rev=false);
-    h = plot(epd_real[order]);
-    plot!(h, epd[order]);
-    plot!(h, epd[order] - epd_real[order]);
+
+    h = plot(size=(310,300), title="",
+                             xlabel="vertex indices",
+                             ylabel="expected degrees",
+                             xlim=(1,277),
+                             ylim=(-1.0, 80.0),
+                             grid="on",
+                             framestyle=:box,
+                             legend=:topleft);
+
+    plot!(h, epd_real[order], label="true");
+    plot!(h, epd[order], label="FMM");
+    plot!(h, epd[order]-epd_real[order], label="error");
+    savefig(h, "results/expected_degrees.svg");
 
     return h, fmm_tree, omega_real, omega;
 end
