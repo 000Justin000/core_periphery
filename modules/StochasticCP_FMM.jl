@@ -110,7 +110,7 @@ module StochasticCP_FMM
         #-----------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
-        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))]; # JJ: debug
+        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))];
         #-------------------------------------------------------------------------
         # now compute the c->c and c->p
         #-------------------------------------------------------------------------
@@ -285,7 +285,7 @@ module StochasticCP_FMM
         epd = zeros(n);
         srd = 0.0;
         #-------------------------------------------------------------------------
-        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))]; # JJ: debug
+        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))];
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -476,10 +476,12 @@ module StochasticCP_FMM
                     push!(J,roid[srid[idx_2]]);
                     push!(V,1.0);
                 end
-            elseif (distance >= max(epsilon*3, 2)*(sp1r + sp2r))
+
+                cmp[end].m += 1;
+            elseif (distance >= max(epsilon*3, 6)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
-                nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
-                nei = Int64(floor(nef) + rand() < (nef - floor(nef)) ? 1 : 0);
+                nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) * 0.0 + distance^epsilon);
+                nei = Int(floor(nef) + (rand() < (nef - floor(nef)) ? 1 : 0));
                 # generate ne edges between this two group of nodes
                 grp_1 = subtree_range(idx_1,n_node);
                 grp_2 = subtree_range(idx_2,n_node);
@@ -487,22 +489,36 @@ module StochasticCP_FMM
                 grp_1_mass = [cmp[it].m for it in grp_1];
                 grp_2_mass = [cmp[it].m for it in grp_2];
 
-                grp_1_mass0 = mean(grp_1_mass);
-                grp_2_mass0 = mean(grp_2_mass);
+                grp_1_mass_mean = mean(grp_1_mass);
+                grp_2_mass_mean = mean(grp_2_mass);
 
-                grp_1_prob = (grp_1_mass .* grp_2_mass0) ./ (grp_1_mass .* grp_2_mass0 + distance^epsilon); grp_1_prob /= sum(grp_1_prob);
-                grp_2_prob = (grp_2_mass .* grp_1_mass0) ./ (grp_2_mass .* grp_1_mass0 + distance^epsilon); grp_2_prob /= sum(grp_2_prob);
+                grp_1_prob = (grp_1_mass .* grp_2_mass_mean) ./ (grp_1_mass .* grp_2_mass_mean + distance^epsilon); grp_1_prob /= sum(grp_1_prob);
+                grp_2_prob = (grp_2_mass .* grp_1_mass_mean) ./ (grp_2_mass .* grp_1_mass_mean + distance^epsilon); grp_2_prob /= sum(grp_2_prob);
+
+                generated_edges = Set{Tuple{Int64,Int64}}();
 
                 #--------------------------------------------------
                 # ball dropping
                 #--------------------------------------------------
-                grp_1_ids = sample(grp_1, Weights(grp_1_prob), nei, replace=true); # sample nei nodes from grp_1 with grp_1_prob
-                grp_2_ids = sample(grp_2, Weights(grp_2_prob), nei, replace=true); # sample nei nodes from grp_2 with grp_2_prob
+                grp_1_ids = sample(grp_1, Weights(grp_1_prob), 2*nei, replace=true); # sample nei nodes from grp_1 with grp_1_prob
+                grp_2_ids = sample(grp_2, Weights(grp_2_prob), 2*nei, replace=true); # sample nei nodes from grp_2 with grp_2_prob
 
-                for i in 1:nei
-                    push!(I,roid[srid[grp_1_ids[i]]]);
-                    push!(J,roid[srid[grp_2_ids[i]]]);
-                    push!(V,1.0);
+                for i in 1:2*nei
+                    oid_1 = roid[srid[grp_1_ids[i]]];
+                    oid_2 = roid[srid[grp_2_ids[i]]];
+                    current_edge = (min(oid_1,oid_2), max(oid_1,oid_2));
+
+                    if (!(current_edge in generated_edges))
+                        push!(generated_edges, current_edge);
+                        #------------------------------------
+                        push!(I,current_edge[1]);
+                        push!(J,current_edge[2]);
+                        push!(V,1.0);
+                    end
+
+                    if (length(generated_edges) >= nei)
+                        break;
+                    end
                 end
                 #--------------------------------------------------
 
@@ -517,12 +533,20 @@ module StochasticCP_FMM
 #               #--------------------------------------------------
 #               for i in 0:nei-1
 #                   target = i/nei + offset;
-#                   id_1 = searchsortedlast(grp_1_bin, target);
-#                   id_2 = searchsortedlast(grp_2_bin*grp_1_prob[id_1], target-grp_1_bin[id_1]);
-
-#                   @assert roid[srid[grp_1[id_1]]] != roid[srid[grp_2[id_2]]];
-#                   @assert A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] != 1;
-#                   A[roid[srid[grp_1[id_1]]], roid[srid[grp_2[id_2]]]] = 1;
+#                   #----------------------------------------------
+#                   gid_1 = searchsortedlast(grp_1_bin, target);
+#                   gid_2 = searchsortedlast(grp_2_bin*grp_1_prob[gid_1], target-grp_1_bin[gid_1]);
+#                   #----------------------------------------------
+#                   oid_1 = roid[srid[grp_1[gid_1]]];
+#                   oid_2 = roid[srid[grp_2[gid_2]]];
+#                   current_edge = (min(oid_1,oid_2), max(oid_1,oid_2));
+#                   #----------------------------------------------
+#                   @assert !(current_edge in generated_edges);
+#                   push!(generated_edges, current_edge);
+#                   #----------------------------------------------
+#                   push!(I,current_edge[1]);
+#                   push!(J,current_edge[2]);
+#                   push!(V,1.0);
 #               end
 #               #--------------------------------------------------
 
@@ -598,8 +622,6 @@ module StochasticCP_FMM
             end
         end
         #-------------------------------------------------------------------------
-        # println(sum(A));
-        #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
         # now compute the p->c and p->p
@@ -631,7 +653,7 @@ module StochasticCP_FMM
         # println(sum(A));
         #-------------------------------------------------------------------------
 
-        A = sparse(I,J,V, n,n,max);
+        A = sparse(I,J,V, n,n,sum);
 
         return A + A';
     end

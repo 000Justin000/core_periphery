@@ -1209,20 +1209,21 @@ function timeit(n, metric, CoM2, epsilon)
         #------------------------------------------------------------
         D = D + D';
         #------------------------------------------------------------
-        @time (omega = StochasticCP.omega(A, C, D, epsilon);)
+#       @time (omega = StochasticCP.omega(A, C, D, epsilon);)
 #       @time (epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
-#       @time (B_ori = StochasticCP.model_gen(C, D, epsilon));
+        @time (B_ori = StochasticCP.model_gen(C, D, epsilon));
     end
 
-    @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
+#   @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
 #   @time (epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0));
-#   @time (B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0)));
+    @time (B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0)));
 
 #   if (n <= 1.0e4)
 #       return countnz(B_ori)/n^2, countnz(B_fmm)/n^2;
 #   else
 #       return countnz(B_fmm)/n^2;
 #   end
+    return B_ori, B_fmm
 end
 #----------------------------------------------------------------
 
