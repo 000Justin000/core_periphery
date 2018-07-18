@@ -803,99 +803,99 @@ function plot_brightkite(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
-#----------------------------------------------------------------
-function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
-    #--------------------------------
-    # load airport data and location
-    #--------------------------------
-    user_dat = readdlm("data/livejournal/uid2crd");
-    num_users = size(user_dat,1);
-    #--------------------------------
-    @assert length(user_dat[:,1]) == length(Set(user_dat[:,1]))
-    #--------------------------------
-
-    #--------------------------------
-    no2id = Dict{Int64, Int64}();
-    id2no = Dict{Int64, Int64}();
-    id2lc = Dict{Int64, Array{Float64,1}}();
-    #--------------------------------
-    for i in 1:num_users
-        no2id[i] = int(user_dat[i,1]);
-        id2no[int(user_dat[i,1])] = i;
-        #----------------------------
-        id2lc[int(user_dat[i,1])] = user_dat[i,2:3];
-    end
-    #--------------------------------
-
-    # continue
-
-    #--------------------------------
-    W = spzeros(num_people,num_people);
-    #--------------------------------
-    # the adjacency matrix
-    #--------------------------------
-    edges_dat = convert(Array{Int64,2}, readdlm("data/brightkite/Brightkite_edges.txt"));
-    num_edges = size(edges_dat,1);
-    for i in 1:num_edges
-        id1 = edges_dat[i,1];
-        id2 = edges_dat[i,2];
-        if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
-            W[id2no[id1], id2no[id2]] += 1;
-        end
-    end
-    #--------------------------------
-    W = W + W';
-    #--------------------------------
-    A = spones(sparse(W));
-    #--------------------------------
-
-    #--------------------------------
-    # compute coordinates
-    #--------------------------------
-    coordinates = [];
-    coords = zeros(2,num_people);
-    for i in 1:num_people
-        coord = id2lc[no2id[i]];
-        coord = coord + rand(2);
-        coord[1] = min(90, max(-90, coord[1]));
-        coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
-        push!(coordinates, coord);
-        coords[:,i] = flipdim(coord,1);
-    end
-    #--------------------------------
-
-    opt = Dict();
-    opt["ratio"] = ratio;
-    opt["thres"] = thres;
-    opt["max_num_step"] = max_num_step;
-
-    if (epsilon > 0)
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        D = nothing;
-    else
-        error("option not supported.");
-    end
-
-    return A, B, C, D, coordinates, epsilon;
-end
-#----------------------------------------------------------------
-
-#----------------------------------------------------------------
-function plot_livejournal(A, C, coords, option="degree", filename="output")
-    h = plot(size=(800,450), title="Brightkite",
-                             xlabel=L"\rm{Longitude}(^\circ)",
-                             ylabel=L"\rm{Latitude}(^\circ)",
-                             framestyle=:box);
-
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
-                        plot_links=false,
-                        distance="Haversine")
-
-    savefig(h, "results/" * filename * ".pdf");
-    return h;
-end
-#----------------------------------------------------------------
+# #----------------------------------------------------------------
+# function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+#     #--------------------------------
+#     # load airport data and location
+#     #--------------------------------
+#     user_dat = readdlm("data/livejournal/uid2crd");
+#     num_users = size(user_dat,1);
+#     #--------------------------------
+#     @assert length(user_dat[:,1]) == length(Set(user_dat[:,1]))
+#     #--------------------------------
+#
+#     #--------------------------------
+#     no2id = Dict{Int64, Int64}();
+#     id2no = Dict{Int64, Int64}();
+#     id2lc = Dict{Int64, Array{Float64,1}}();
+#     #--------------------------------
+#     for i in 1:num_users
+#         no2id[i] = int(user_dat[i,1]);
+#         id2no[int(user_dat[i,1])] = i;
+#         #----------------------------
+#         id2lc[int(user_dat[i,1])] = user_dat[i,2:3];
+#     end
+#     #--------------------------------
+#
+#     # continue
+#
+#     #--------------------------------
+#     W = spzeros(num_people,num_people);
+#     #--------------------------------
+#     # the adjacency matrix
+#     #--------------------------------
+#     edges_dat = convert(Array{Int64,2}, readdlm("data/brightkite/Brightkite_edges.txt"));
+#     num_edges = size(edges_dat,1);
+#     for i in 1:num_edges
+#         id1 = edges_dat[i,1];
+#         id2 = edges_dat[i,2];
+#         if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
+#             W[id2no[id1], id2no[id2]] += 1;
+#         end
+#     end
+#     #--------------------------------
+#     W = W + W';
+#     #--------------------------------
+#     A = spones(sparse(W));
+#     #--------------------------------
+#
+#     #--------------------------------
+#     # compute coordinates
+#     #--------------------------------
+#     coordinates = [];
+#     coords = zeros(2,num_people);
+#     for i in 1:num_people
+#         coord = id2lc[no2id[i]];
+#         coord = coord + rand(2);
+#         coord[1] = min(90, max(-90, coord[1]));
+#         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
+#         push!(coordinates, coord);
+#         coords[:,i] = flipdim(coord,1);
+#     end
+#     #--------------------------------
+#
+#     opt = Dict();
+#     opt["ratio"] = ratio;
+#     opt["thres"] = thres;
+#     opt["max_num_step"] = max_num_step;
+#
+#     if (epsilon > 0)
+#         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+#         B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+#         D = nothing;
+#     else
+#         error("option not supported.");
+#     end
+#
+#     return A, B, C, D, coordinates, epsilon;
+# end
+# #----------------------------------------------------------------
+#
+# #----------------------------------------------------------------
+# function plot_livejournal(A, C, coords, option="degree", filename="output")
+#     h = plot(size=(800,450), title="Brightkite",
+#                              xlabel=L"\rm{Longitude}(^\circ)",
+#                              ylabel=L"\rm{Latitude}(^\circ)",
+#                              framestyle=:box);
+#
+#     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+#                         plot_links=false,
+#                         distance="Haversine")
+#
+#     savefig(h, "results/" * filename * ".pdf");
+#     return h;
+# end
+# #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
