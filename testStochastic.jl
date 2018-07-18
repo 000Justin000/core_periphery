@@ -412,6 +412,136 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
+function celegans_gen_analysis(A, BB_ept, BB_fmm, D)
+    @assert issymmetric(A);
+    @assert issymmetric(D);
+
+    degrees_ori = vec(sum(A,1));
+    degrees_ept = vec(sum(mean(BB_ept),1));
+    degrees_fmm = vec(sum(mean(BB_fmm),1));
+
+    #------------------------------------------------------------
+    h1 = plot(size=(310,300), title="",
+                              xlabel="vertex degrees (original)",
+                              ylabel="vertex degrees (100\% explicit)",
+                              xlim=(-2, 80),
+                              ylim=(-2, 80),
+                              grid="on",
+                              framestyle=:box,
+                              legend=:topleft);
+    plot!(h1, -2:80, -2:80, color="red", label="ideal");
+    scatter!(h1, degrees_ori, degrees_ept, color="blue", label="100\% explicit", markerstrokewidth=0.3);
+    #------------------------------------------------------------
+    h2 = plot(size=(310,300), title="",
+                              xlabel="vertex degrees (original)",
+                              ylabel="vertex degrees (FMM + 8\% explicit)",
+                              xlim=(-2, 80),
+                              ylim=(-2, 80),
+                              grid="on",
+                              framestyle=:box,
+                              legend=:topleft);
+    plot!(h2, -2:80, -2:80, color="red", label="ideal");
+    scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM + 8\% explicit", markerstrokewidth=0.3);
+    #------------------------------------------------------------
+
+    #------------------------------------------------------------
+    n = size(A,1);
+    AS     = Array{Float64,1}();
+    BS_ept = Array{Float64,1}();
+    BS_fmm = Array{Float64,1}();
+    DS     = Array{Float64,1}();
+    #------------------------------------------------------------
+    for i in 1:n
+        for j in i+1:n
+            #----------------------------------------------------
+            if (A[i,j] == 1)
+                push!(AS, D[i,j]);
+            end
+            #----------------------------------------------------
+            for k in 1:length(BB_ept)
+                if (BB_ept[k][i,j] == 1)
+                    push!(BS_ept, D[i,j]);
+                end
+            end
+            #----------------------------------------------------
+            for k in 1:length(BB_fmm)
+                if (BB_fmm[k][i,j] == 1)
+                    push!(BS_fmm, D[i,j]);
+                end
+            end
+            #----------------------------------------------------
+        end
+    end
+    #------------------------------------------------------------
+
+    accumulated_ori = Array{Float64,1}();
+    accumulated_ept = Array{Float64,1}();
+    accumulated_fmm = Array{Float64,1}();
+
+    thresholds = 0.00:0.01:1.40;
+
+    for thres in thresholds
+        push!(accumulated_ori, sum(AS     .< thres));
+        push!(accumulated_ept, sum(BS_ept .< thres)/length(BB_ept));
+        push!(accumulated_fmm, sum(BS_fmm .< thres)/length(BB_fmm));
+    end
+
+    #------------------------------------------------------------
+    h3 = plot(size=(650,300), title="",
+                              xlabel="distance threshold (mm)",
+                              ylabel="number of edges",
+                              xlim=(0.00,1.40),
+                              ylim=(0, 2000),
+                              xticks=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4],
+                              grid="on",
+                              framestyle=:box,
+                              legend=:topleft);
+    #------------------------------------------------------------
+#    plot!(h3, 0.00:0.01:1.40, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
+#    plot!(h3, 0.00:0.01:1.40, accumulated_ept, linewidth=2.0, linestyle=:solid, color="blue",   label="100\% explicit");
+#    plot!(h3, 0.00:0.01:1.40, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM + 8\% explicit");
+
+    plot!(h3, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
+    plot!(h3, thresholds, accumulated_ept, linewidth=2.0, linestyle=:solid, color="blue",   label="100\% explicit");
+    plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM + 8\% explicit");
+
+#     Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+#     Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+#     Dhist = fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+#
+#     h = plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
+#                                                  ylabel=L"\rm{edge\ probability}",
+#                                                  xlim=(3.5e+5, 2.5e+7),
+#                                                  ylim=(3.0e-6, 2.5e-2),
+#                                                  xscale=:log10,
+#                                                  yscale=:log10,
+#                                                  framestyle=:box,
+#                                                  grid="on");
+#
+#     AprobL = linreg(log10.(0.5e6:1.0e6:1.15e7), log10.((Ahist.weights./Dhist.weights)[1:12]));
+#     BprobL = linreg(log10.(0.5e6:1.0e6:1.15e7), log10.((Bhist.weights./Dhist.weights)[1:12]));
+#
+#     xrange = 0.5e6:0.1e6:1.15e7;
+#     AfitL = 10.^(AprobL[2] * log10.(xrange) + AprobL[1]);
+#     BfitL = 10.^(BprobL[2] * log10.(xrange) + BprobL[1]);
+#
+#     plot!(h, xrange, AfitL, label="", color="red",  linestyle=:dot, linewidth=2.0);
+#     plot!(h, xrange, BfitL, label="", color="blue", linestyle=:dot, linewidth=2.0);
+#
+#     scatter!(h, 0.5e6:1.0e6:1.35e7, (Ahist.weights./Dhist.weights)[1:14], label="original",  color="red",  ms=7);
+#     scatter!(h, 0.5e6:1.0e6:1.35e7, (Bhist.weights./Dhist.weights)[1:14], label="generated", color="blue", ms=7);
+#
+#     savefig(h, "results/openflight_probE.pdf");
+
+    savefig(h1, "results/celegans_degrees_ept.svg");
+    savefig(h2, "results/celegans_degrees_fmm.svg");
+    savefig(h3, "results/celegans_hist_distance.svg");
+
+    return AS, BS_ept, BS_fmm, DS, h1, h2, h3
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
 function hist_openflight()
     #--------------------------------
     # load airport data and location
@@ -673,7 +803,99 @@ function plot_brightkite(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
+#----------------------------------------------------------------
+function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+    #--------------------------------
+    # load airport data and location
+    #--------------------------------
+    user_dat = readdlm("data/livejournal/uid2crd");
+    num_users = size(user_dat,1);
+    #--------------------------------
+    @assert length(user_dat[:,1]) == length(Set(user_dat[:,1]))
+    #--------------------------------
 
+    #--------------------------------
+    no2id = Dict{Int64, Int64}();
+    id2no = Dict{Int64, Int64}();
+    id2lc = Dict{Int64, Array{Float64,1}}();
+    #--------------------------------
+    for i in 1:num_users
+        no2id[i] = int(user_dat[i,1]);
+        id2no[int(user_dat[i,1])] = i;
+        #----------------------------
+        id2lc[int(user_dat[i,1])] = user_dat[i,2:3];
+    end
+    #--------------------------------
+
+    # continue
+
+    #--------------------------------
+    W = spzeros(num_people,num_people);
+    #--------------------------------
+    # the adjacency matrix
+    #--------------------------------
+    edges_dat = convert(Array{Int64,2}, readdlm("data/brightkite/Brightkite_edges.txt"));
+    num_edges = size(edges_dat,1);
+    for i in 1:num_edges
+        id1 = edges_dat[i,1];
+        id2 = edges_dat[i,2];
+        if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
+            W[id2no[id1], id2no[id2]] += 1;
+        end
+    end
+    #--------------------------------
+    W = W + W';
+    #--------------------------------
+    A = spones(sparse(W));
+    #--------------------------------
+
+    #--------------------------------
+    # compute coordinates
+    #--------------------------------
+    coordinates = [];
+    coords = zeros(2,num_people);
+    for i in 1:num_people
+        coord = id2lc[no2id[i]];
+        coord = coord + rand(2);
+        coord[1] = min(90, max(-90, coord[1]));
+        coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
+        push!(coordinates, coord);
+        coords[:,i] = flipdim(coord,1);
+    end
+    #--------------------------------
+
+    opt = Dict();
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["max_num_step"] = max_num_step;
+
+    if (epsilon > 0)
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        D = nothing;
+    else
+        error("option not supported.");
+    end
+
+    return A, B, C, D, coordinates, epsilon;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_livejournal(A, C, coords, option="degree", filename="output")
+    h = plot(size=(800,450), title="Brightkite",
+                             xlabel=L"\rm{Longitude}(^\circ)",
+                             ylabel=L"\rm{Latitude}(^\circ)",
+                             framestyle=:box);
+
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+                        plot_links=false,
+                        distance="Haversine")
+
+    savefig(h, "results/" * filename * ".pdf");
+    return h;
+end
+#----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
@@ -754,7 +976,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
 #       C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
 
 #       B = StochasticCP.model_gen(C, D, epsilon);
         B0 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
@@ -1134,11 +1356,15 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     end
     #-----------------------------------------------------------------------------
 
-    omega_real = StochasticCP.omega(A, C, D, epsilon);
+    omega_explicit = StochasticCP.omega(A, C, D, epsilon);
     omega = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
 
-    epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
+    epd_explicit = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
+    srd_explicit = StochasticCP.sum_rho_logD(C,D,epsilon);
     epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+
+    domega_depsilon_explicit = (srd_explicit-sum_logD_inE);
+    domega_depsilon = (srd-sum_logD_inE);
 
     order = sortperm(C, rev=false);
 
@@ -1151,14 +1377,38 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
                              framestyle=:box,
                              legend=:topleft);
 
-    plot!(h, epd_real[order], label="true");
-    plot!(h, epd[order], label="FMM");
-    plot!(h, epd[order]-epd_real[order], label="error");
+    plot!(h, vec(sum(A,1))[order],           linestyle=:solid, linewidth=2.50, color="grey",   label="original degrees");
+    plot!(h, epd_explicit[order],            linestyle=:solid, linewidth=1.30, color="blue",   label="100\% explicit");
+    plot!(h, epd[order],                     linestyle=:solid, linewidth=0.50, color="orange", label="FMM + 8\% explicit");
+    plot!(h, epd[order]-epd_explicit[order], linestyle=:solid, linewidth=1.00, color="red",    label="error");
     savefig(h, "results/expected_degrees.svg");
 
-    return h, fmm_tree, omega_real, omega;
+    return h, fmm_tree, omega_explicit, omega, domega_depsilon_explicit, domega_depsilon;
 end
 #----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_cs_correlation(C, CC)
+    h = plot(size=(310,300), title="",
+                                xlabel="core scores (100% explicit)",
+                                ylabel="core scores (FMM + 8\% explicit)",
+                                xlim=(-5.35,0.35),
+                                ylim=(-5.35,0.35),
+                                grid="on",
+                                framestyle=:box,
+                                legend=:topleft);
+
+    plot!(h, -5.35:0.05:0.35, -5.35:0.05:0.35, color="red", label="ideal");
+    od = sortperm(C, rev=true);
+    scatter!(h, C[od[1:23]], CC[od[1:23]],     label="explicit", color="green", markerstrokewidth=0.3);
+    scatter!(h, C[od[24:end]], CC[od[24:end]], label="FMM",      color="blue",  markerstrokewidth=0.3);
+
+    savefig(h, "results/cs_correlation.svg");
+
+    return h;
+end
+#----------------------------------------------------------------
+
 
 
 #----------------------------------------------------------------
@@ -1210,8 +1460,8 @@ function timeit(n, metric, CoM2, epsilon)
         D = D + D';
         #------------------------------------------------------------
 #       @time (omega = StochasticCP.omega(A, C, D, epsilon);)
-#       @time (epd_real = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
-        @time (B_ori = StochasticCP.model_gen(C, D, epsilon));
+#       @time (epd_explicit = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
+        @time (B_ept = StochasticCP.model_gen(C, D, epsilon));
     end
 
 #   @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
@@ -1219,11 +1469,11 @@ function timeit(n, metric, CoM2, epsilon)
     @time (B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0)));
 
 #   if (n <= 1.0e4)
-#       return countnz(B_ori)/n^2, countnz(B_fmm)/n^2;
+#       return countnz(B_ept)/n^2, countnz(B_fmm)/n^2;
 #   else
 #       return countnz(B_fmm)/n^2;
 #   end
-    return B_ori, B_fmm
+    return B_ept, B_fmm
 end
 #----------------------------------------------------------------
 
@@ -1232,13 +1482,13 @@ function plot_timings()
     #------------------------------------------------------------
     size = [1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6];
     #------------------------------------------------------------
-    ori_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
+    ept_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
     fmm_omega = [0.000610, 0.008427,  0.087300,    1.203448,     12.367116];
     #------------------------------------------------------------
-    ori_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
+    ept_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
     fmm_deriv = [0.001503, 0.023390,  0.286124,    3.228055,     39.302156];
     #------------------------------------------------------------
-    ori_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
+    ept_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
     fmm_gener = [0.003978, 0.103288,  1.768498,   22.576165,   256.542071];
     #------------------------------------------------------------
 
