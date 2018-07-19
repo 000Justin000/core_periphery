@@ -22,6 +22,44 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
+    function subtree_size(idx, n)
+        @assert mod(n,2) == 1;
+        @assert idx <= n;
+
+        p = Int64(floor(log(n)/log(2)) - floor(log(idx)/log(2)));
+
+        if (2^p * idx + 2^p - 1 <= n) # the tree that root at idx is full binary tree with height p
+            size = 2^p;
+        elseif (2^p * idx <= n)       # the tree that root at idx is (not full) binary tree with height p
+            size = 2^(p-1) + div(n - 2^p * idx + 1, 2);
+        else                          # the tree that root at idx is full binary tree with height p-1
+            size = 2^(p-1);
+        end
+
+        return size;
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
+    function subtree_range(idx, n)
+        @assert mod(n,2) == 1;
+        @assert idx <= n;
+
+        p = Int64(floor(log(n)/log(2)) - floor(log(idx)/log(2)));
+
+        if (2^p * idx + 2^p - 1 <= n) # the tree that root at idx is full binary tree with height p
+            range = collect(2^p * idx : 2^p * idx + 2^p - 1);
+        elseif (2^p * idx <= n)       # the tree that root at idx is (not full) binary tree with height p
+            range = vcat(collect(2^(p-1) * idx + div(n - 2^p * idx + 1, 2) : 2^(p-1) * idx + 2^(p-1) - 1), collect(2^p * idx : n));
+        else                          # the tree that root at idx is full binary tree with height p-1
+            range = collect(2^(p-1) * idx : 2^(p-1) * idx + 2^(p-1) - 1);
+        end
+
+        return range;
+    end
+    #-----------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------------
     # recursively compute the center of mass of each node
     #-----------------------------------------------------------------------------
     function fill_cm!(cmp, idx, bt, ms, roid, srid, CoM2)
@@ -43,9 +81,9 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
-    # compute the potential between two nodes
+    # compute the interaction between two nodes
     #-----------------------------------------------------------------------------
-    function acc_p2!(cmp, idx_1, idx_2, bt, epsilon)
+    function accumulate_i2!(cmp, idx_1, idx_2, bt, epsilon)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
@@ -65,24 +103,24 @@ module StochasticCP_FMM
                                   -(1/4) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^4;
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
-                acc_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
-                acc_p2!(cmp, idx_1, idx_2*2+1, bt, epsilon);
+                accumulate_i2!(cmp, idx_1, idx_2*2,   bt, epsilon);
+                accumulate_i2!(cmp, idx_1, idx_2*2+1, bt, epsilon);
             else
-                acc_p2!(cmp, idx_1*2,   idx_2, bt, epsilon);
-                acc_p2!(cmp, idx_1*2+1, idx_2, bt, epsilon);
+                accumulate_i2!(cmp, idx_1*2,   idx_2, bt, epsilon);
+                accumulate_i2!(cmp, idx_1*2+1, idx_2, bt, epsilon);
             end
         end
     end
     #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
-    # recursively compute the potential at each level of the tree
+    # recursively compute the interaction at each level of the tree
     #-----------------------------------------------------------------------------
-    function acc_p!(cmp, idx, bt, epsilon)
+    function accumulate_i!(cmp, idx, bt, epsilon)
         if (idx <= bt.tree_data.n_internal_nodes)
-            acc_p2!(cmp, idx*2, idx*2+1, bt, epsilon)
-            acc_p!(cmp,  idx*2,          bt, epsilon)
-            acc_p!(cmp,  idx*2+1,        bt, epsilon)
+            accumulate_i2!(cmp, idx*2, idx*2+1, bt, epsilon)
+            accumulate_i!(cmp,  idx*2,          bt, epsilon)
+            accumulate_i!(cmp,  idx*2+1,        bt, epsilon)
         end
     end
     #-----------------------------------------------------------------------------
@@ -160,50 +198,12 @@ module StochasticCP_FMM
         fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        acc_p!(fmm_tree, 1, bt, epsilon);
+        accumulate_i!(fmm_tree, 1, bt, epsilon);
         #-------------------------------------------------------------------------
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
 
         return omega;
-    end
-    #-----------------------------------------------------------------------------
-
-    #-----------------------------------------------------------------------------
-    function subtree_range(idx, n)
-        @assert mod(n,2) == 1;
-        @assert idx <= n;
-
-        p = Int64(floor(log(n)/log(2)) - floor(log(idx)/log(2)));
-
-        if (2^p * idx + 2^p - 1 <= n) # the tree that root at idx is full binary tree with height p
-            range = collect(2^p * idx : 2^p * idx + 2^p - 1);
-        elseif (2^p * idx <= n)       # the tree that root at idx is (not full) binary tree with height p
-            range = vcat(collect(2^(p-1) * idx + div(n - 2^p * idx + 1, 2) : 2^(p-1) * idx + 2^(p-1) - 1), collect(2^p * idx : n));
-        else                          # the tree that root at idx is full binary tree with height p-1
-            range = collect(2^(p-1) * idx : 2^(p-1) * idx + 2^(p-1) - 1);
-        end
-
-        return range;
-    end
-    #-----------------------------------------------------------------------------
-
-    #-----------------------------------------------------------------------------
-    function subtree_size(idx, n)
-        @assert mod(n,2) == 1;
-        @assert idx <= n;
-
-        p = Int64(floor(log(n)/log(2)) - floor(log(idx)/log(2)));
-
-        if (2^p * idx + 2^p - 1 <= n) # the tree that root at idx is full binary tree with height p
-            size = 2^p;
-        elseif (2^p * idx <= n)       # the tree that root at idx is (not full) binary tree with height p
-            size = 2^(p-1) + div(n - 2^p * idx + 1, 2);
-        else                          # the tree that root at idx is full binary tree with height p-1
-            size = 2^(p-1);
-        end
-
-        return size;
     end
     #-----------------------------------------------------------------------------
 
@@ -225,10 +225,8 @@ module StochasticCP_FMM
                 cmp[idx_1].pot_2 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 cmp[idx_2].pot_2 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r))
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
-                # cmp[idx_1].pot_1 += cmp[idx_2].m / distance^epsilon;
-                # cmp[idx_2].pot_1 += cmp[idx_1].m / distance^epsilon;
                 cmp[idx_1].pot_1 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 cmp[idx_2].pot_1 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 cmp[idx_1].pot_2 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
@@ -414,7 +412,7 @@ module StochasticCP_FMM
             #---------------------------------------------------------------------
         end
         #-----------------------------------------------------------------------------
-        println("sum_logD_inE: ", sum_logD_inE);
+        # println("sum_logD_inE: ", sum_logD_inE);
 
         dist = Dict{Int64,Array{Float64,1}}()
         bt = BallTree(coords, metric, leafsize=1);
@@ -456,12 +454,10 @@ module StochasticCP_FMM
     end
     #-----------------------------------------------------------------------------
 
-
-
     #-----------------------------------------------------------------------------
     # generate edges between points within two hyper_spheres
     #-----------------------------------------------------------------------------
-    function gen_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, I,J,V)
+    function generate_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, I,J,V)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
@@ -478,7 +474,7 @@ module StochasticCP_FMM
                 end
 
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*3, 6)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 nei = Int64(floor(nef) + (rand() < (nef - floor(nef)) ? 1 : 0));
@@ -522,7 +518,6 @@ module StochasticCP_FMM
                 end
                 #--------------------------------------------------
 
-
 #               #--------------------------------------------------
 #               # grass hopping
 #               #--------------------------------------------------
@@ -552,11 +547,11 @@ module StochasticCP_FMM
 
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
-                gen_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, I,J,V);
-                gen_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, I,J,V);
+                generate_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, I,J,V);
+                generate_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, I,J,V);
             else
-                gen_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, I,J,V);
-                gen_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, I,J,V);
+                generate_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, I,J,V);
+                generate_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, I,J,V);
             end
         end
     end
@@ -565,11 +560,11 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # recursively generate edges at each level of the tree
     #-----------------------------------------------------------------------------
-    function gen_e!(cmp, idx, bt, epsilon, roid, srid, I,J,V)
+    function generate_e!(cmp, idx, bt, epsilon, roid, srid, I,J,V)
         if (idx <= bt.tree_data.n_internal_nodes)
-            gen_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, I,J,V);
-            gen_e!(cmp,  idx*2,          bt, epsilon, roid, srid, I,J,V);
-            gen_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, I,J,V);
+            generate_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, I,J,V);
+            generate_e!(cmp,  idx*2,          bt, epsilon, roid, srid, I,J,V);
+            generate_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, I,J,V);
         end
     end
     #-----------------------------------------------------------------------------
@@ -648,7 +643,7 @@ module StochasticCP_FMM
 
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        gen_e!(fmm_tree, 1, bt, epsilon, roid, srid, I,J,V);
+        generate_e!(fmm_tree, 1, bt, epsilon, roid, srid, I,J,V);
         #-------------------------------------------------------------------------
         # println(sum(A));
         #-------------------------------------------------------------------------

@@ -11,60 +11,6 @@ using StochasticCP;
 using StochasticCP_SGD;
 using StochasticCP_FMM;
 
-# #----------------------------------------------------------------
-# function test_n_r_p_k(n, cratio, p, klist=1.00:0.05:2.00, repeat=1)
-#     crs = [];
-#     for k in klist
-#         #--------------------------------------------------------
-#         # A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
-#         #--------------------------------------------------------
-#         cr = 0;
-#         #--------------------------------------------------------
-#         for itr in 1:repeat
-#             A  = NetworkGen.n_r_cc_cp_pp(n, cratio, k^2*p, k*p, k*p);
-#             C   = StochasticCP.model_fit(A);
-#             od  = sortperm(C, rev=true);
-#             cr += (1/repeat) * sum([i<=n*cratio ? 1 : 0 for i in od[1:Int(n*cratio)]])/(n*cratio);
-#         end
-#         #--------------------------------------------------------
-#         push!(crs, cr);
-#         #--------------------------------------------------------
-#     end
-#     plot(klist, crs);
-# end
-# #----------------------------------------------------------------
-#
-# #----------------------------------------------------------------
-# function test_lattice(n)
-#     A = NetworkGen.periodic_lattice(n,n);
-#     C, epsilon = StochasticCP.model_fit(A);
-#
-#     plot(C);
-# end
-# #----------------------------------------------------------------
-#
-# #----------------------------------------------------------------
-# function test_reachability()
-#     data = MAT.matread("data/benson/reachability.mat");
-#
-#     od = sortperm(vec(data["populations"]), rev=true);
-#     data["A"]           = data["A"][od,od]
-#     data["labels"]      = data["labels"][od]
-#     data["latitude"]    = data["latitude"][od]
-#     data["longitude"]   = data["longitude"][od]
-#     data["populations"] = data["populations"][od]
-#
-#     A  = spones(data["A"]);
-#     W0 = Motif.Me1(A);
-#     C  = StochasticCP.model_fit(W0);
-#     W1 = StochasticCP.model_gen(C);
-#
-#     plot(C);
-#
-#     return W0, W1, data;
-# end
-# #----------------------------------------------------------------
-
 #----------------------------------------------------------------
 function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
     if (m1 == 0.0 && m2 == 0.0)
@@ -191,9 +137,9 @@ function rank_distance_matrix(D)
 
     R = zeros(D);
     for j in 1:n
-        od = sortperm(D[:,j]);
+        order = sortperm(D[:,j]);
         for i in 2:n
-            R[od[i],j] = i-1;
+            R[order[i],j] = i-1;
         end
     end
 
@@ -412,42 +358,42 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function celegans_gen_analysis(A, BB_ept, BB_fmm, D)
+function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     @assert issymmetric(A);
     @assert issymmetric(D);
 
     degrees_ori = vec(sum(A,1));
-    degrees_ept = vec(sum(mean(BB_ept),1));
+    degrees_nev = vec(sum(mean(BB_nev),1));
     degrees_fmm = vec(sum(mean(BB_fmm),1));
 
     #------------------------------------------------------------
-    h1 = plot(size=(310,300), title="",
+    h1 = plot(size=(270,260), title="",
                               xlabel="vertex degrees (original)",
-                              ylabel="vertex degrees (100\% explicit)",
+                              ylabel="vertex degrees (naive)",
                               xlim=(-2, 80),
                               ylim=(-2, 80),
                               grid="on",
                               framestyle=:box,
                               legend=:topleft);
     plot!(h1, -2:80, -2:80, color="red", label="ideal");
-    scatter!(h1, degrees_ori, degrees_ept, color="blue", label="100\% explicit", markerstrokewidth=0.3);
+    scatter!(h1, degrees_ori, degrees_nev, color="blue", label="naive", markerstrokewidth=0.3);
     #------------------------------------------------------------
-    h2 = plot(size=(310,300), title="",
+    h2 = plot(size=(270,260), title="",
                               xlabel="vertex degrees (original)",
-                              ylabel="vertex degrees (FMM + 8\% explicit)",
+                              ylabel="vertex degrees (FMM)",
                               xlim=(-2, 80),
                               ylim=(-2, 80),
                               grid="on",
                               framestyle=:box,
                               legend=:topleft);
     plot!(h2, -2:80, -2:80, color="red", label="ideal");
-    scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM + 8\% explicit", markerstrokewidth=0.3);
+    scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM", markerstrokewidth=0.3);
     #------------------------------------------------------------
 
     #------------------------------------------------------------
     n = size(A,1);
     AS     = Array{Float64,1}();
-    BS_ept = Array{Float64,1}();
+    BS_nev = Array{Float64,1}();
     BS_fmm = Array{Float64,1}();
     DS     = Array{Float64,1}();
     #------------------------------------------------------------
@@ -458,9 +404,9 @@ function celegans_gen_analysis(A, BB_ept, BB_fmm, D)
                 push!(AS, D[i,j]);
             end
             #----------------------------------------------------
-            for k in 1:length(BB_ept)
-                if (BB_ept[k][i,j] == 1)
-                    push!(BS_ept, D[i,j]);
+            for k in 1:length(BB_nev)
+                if (BB_nev[k][i,j] == 1)
+                    push!(BS_nev, D[i,j]);
                 end
             end
             #----------------------------------------------------
@@ -475,19 +421,19 @@ function celegans_gen_analysis(A, BB_ept, BB_fmm, D)
     #------------------------------------------------------------
 
     accumulated_ori = Array{Float64,1}();
-    accumulated_ept = Array{Float64,1}();
+    accumulated_nev = Array{Float64,1}();
     accumulated_fmm = Array{Float64,1}();
 
     thresholds = 0.00:0.01:1.40;
 
     for thres in thresholds
         push!(accumulated_ori, sum(AS     .< thres));
-        push!(accumulated_ept, sum(BS_ept .< thres)/length(BB_ept));
+        push!(accumulated_nev, sum(BS_nev .< thres)/length(BB_nev));
         push!(accumulated_fmm, sum(BS_fmm .< thres)/length(BB_fmm));
     end
 
     #------------------------------------------------------------
-    h3 = plot(size=(650,300), title="",
+    h3 = plot(size=(570,300), title="",
                               xlabel="distance threshold (mm)",
                               ylabel="number of edges",
                               xlim=(0.00,1.40),
@@ -497,13 +443,9 @@ function celegans_gen_analysis(A, BB_ept, BB_fmm, D)
                               framestyle=:box,
                               legend=:topleft);
     #------------------------------------------------------------
-#    plot!(h3, 0.00:0.01:1.40, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
-#    plot!(h3, 0.00:0.01:1.40, accumulated_ept, linewidth=2.0, linestyle=:solid, color="blue",   label="100\% explicit");
-#    plot!(h3, 0.00:0.01:1.40, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM + 8\% explicit");
-
     plot!(h3, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
-    plot!(h3, thresholds, accumulated_ept, linewidth=2.0, linestyle=:solid, color="blue",   label="100\% explicit");
-    plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM + 8\% explicit");
+    plot!(h3, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
+    plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
 
 #     Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 #     Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
@@ -533,11 +475,11 @@ function celegans_gen_analysis(A, BB_ept, BB_fmm, D)
 #
 #     savefig(h, "results/openflight_probE.pdf");
 
-    savefig(h1, "results/celegans_degrees_ept.svg");
+    savefig(h1, "results/celegans_degrees_nev.svg");
     savefig(h2, "results/celegans_degrees_fmm.svg");
     savefig(h3, "results/celegans_hist_distance.svg");
 
-    return AS, BS_ept, BS_fmm, DS, h1, h2, h3
+    return AS, BS_nev, BS_fmm, DS, h1, h2, h3
 end
 #----------------------------------------------------------------
 
@@ -675,7 +617,7 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        D = nothing;
+        D = Haversine_matrix(coordinates);
         # B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
@@ -1078,9 +1020,9 @@ function intro_celegans(A, C, coords, option="community", filename="output")
     savefig(h, "results/" * filename * ".svg");
 
     if (option == "community")
-        od = [i for j in 1:10 for i in shuffle(1:n) if com[i] == j];
+        order = [i for j in 1:10 for i in shuffle(1:n) if com[i] == j];
     elseif (option == "core_periphery")
-        od = sortperm(C, rev=true);
+        order = sortperm(C, rev=true);
     end
 
     #----------------------------------------------------------------
@@ -1088,7 +1030,7 @@ function intro_celegans(A, C, coords, option="community", filename="output")
     #----------------------------------------------------------------
     for i in 1:n
         for j in 1:n
-            R[i,j] = A[od[i], od[j]];
+            R[i,j] = A[order[i], order[j]];
         end
     end
     #----------------------------------------------------------------
@@ -1181,9 +1123,9 @@ function intro_Karate(A, C, coords, option="community", filename="output")
     savefig(h, "results/" * filename * ".svg");
 
     if (option == "community")
-        od = vcat(vec(com[2]), vec(com[1]));
+        order = vcat(vec(com[2]), vec(com[1]));
     elseif (option == "core_periphery")
-        od = sortperm(C, rev=true);
+        order = sortperm(C, rev=true);
     end
 
     #----------------------------------------------------------------
@@ -1191,7 +1133,7 @@ function intro_Karate(A, C, coords, option="community", filename="output")
     #----------------------------------------------------------------
     for i in 1:n
         for j in 1:n
-            R[i,j] = A[od[i], od[j]];
+            R[i,j] = A[order[i], order[j]];
         end
     end
     #----------------------------------------------------------------
@@ -1333,7 +1275,6 @@ function plot_algo(sigma, num_vertices)
 end
 #----------------------------------------------------------------
 
-
 #----------------------------------------------------------------
 function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
@@ -1356,60 +1297,56 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     end
     #-----------------------------------------------------------------------------
 
-    omega_explicit = StochasticCP.omega(A, C, D, epsilon);
-    omega = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
+    omega_nev = StochasticCP.omega(A, C, D, epsilon);
+    omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
 
-    epd_explicit = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
-    srd_explicit = StochasticCP.sum_rho_logD(C,D,epsilon);
-    epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+    epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
+    srd_nev = StochasticCP.sum_rho_logD(C,D,epsilon);
+    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
 
-    domega_depsilon_explicit = (srd_explicit-sum_logD_inE);
-    domega_depsilon = (srd-sum_logD_inE);
+    domega_depsilon_nev = (srd_nev-sum_logD_inE);
+    domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
 
     order = sortperm(C, rev=false);
 
-    h = plot(size=(310,300), title="",
+    h = plot(size=(270,260), title="",
                              xlabel="vertex indices",
                              ylabel="expected degrees",
-                             xlim=(1,277),
-                             ylim=(-1.0, 80.0),
+#                            xlim=(1,277),
+#                            ylim=(-1.0, 80.0),
                              grid="on",
                              framestyle=:box,
                              legend=:topleft);
 
-    plot!(h, vec(sum(A,1))[order],           linestyle=:solid, linewidth=2.50, color="grey",   label="original degrees");
-    plot!(h, epd_explicit[order],            linestyle=:solid, linewidth=1.30, color="blue",   label="100\% explicit");
-    plot!(h, epd[order],                     linestyle=:solid, linewidth=0.50, color="orange", label="FMM + 8\% explicit");
-    plot!(h, epd[order]-epd_explicit[order], linestyle=:solid, linewidth=1.00, color="red",    label="error");
+    plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=2.50, color="grey",   label="original degrees");
+    plot!(h, epd_nev[order],                linestyle=:solid, linewidth=1.30, color="blue",   label="naive");
+    plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=0.50, color="orange", label="FMM");
+    plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="error");
     savefig(h, "results/expected_degrees.svg");
 
-    return h, fmm_tree, omega_explicit, omega, domega_depsilon_explicit, domega_depsilon;
+    return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_cs_correlation(C, CC)
-    h = plot(size=(310,300), title="",
-                                xlabel="core scores (100% explicit)",
-                                ylabel="core scores (FMM + 8\% explicit)",
-                                xlim=(-5.35,0.35),
-                                ylim=(-5.35,0.35),
-                                grid="on",
-                                framestyle=:box,
-                                legend=:topleft);
+function plot_cs_correlation(C_nev, C_fmm)
+    h = plot(size=(270,260), title="",
+                             xlabel="core scores (naive)",
+                             ylabel="core scores (FMM)",
+                             xlim=(-5.35,0.35),
+                             ylim=(-5.35,0.35),
+                             grid="on",
+                             framestyle=:box,
+                             legend=:topleft);
 
     plot!(h, -5.35:0.05:0.35, -5.35:0.05:0.35, color="red", label="ideal");
-    od = sortperm(C, rev=true);
-    scatter!(h, C[od[1:23]], CC[od[1:23]],     label="explicit", color="green", markerstrokewidth=0.3);
-    scatter!(h, C[od[24:end]], CC[od[24:end]], label="FMM",      color="blue",  markerstrokewidth=0.3);
+    scatter!(h, C_nev, C_fmm, label="experiment", color="blue", markerstrokewidth=0.3);
 
     savefig(h, "results/cs_correlation.svg");
 
     return h;
 end
 #----------------------------------------------------------------
-
-
 
 #----------------------------------------------------------------
 function timeit(n, metric, CoM2, epsilon)
@@ -1459,21 +1396,21 @@ function timeit(n, metric, CoM2, epsilon)
         #------------------------------------------------------------
         D = D + D';
         #------------------------------------------------------------
-#       @time (omega = StochasticCP.omega(A, C, D, epsilon);)
-#       @time (epd_explicit = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
-        @time (B_ept = StochasticCP.model_gen(C, D, epsilon));
+#       @time (omega_nev = StochasticCP.omega(A, C, D, epsilon);)
+#       @time (epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
+        @time (B_nev = StochasticCP.model_gen(C, D, epsilon));
     end
 
-#   @time (omega = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
-#   @time (epd, srd, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0));
+#   @time (omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
+#   @time (epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0));
     @time (B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0)));
 
 #   if (n <= 1.0e4)
-#       return countnz(B_ept)/n^2, countnz(B_fmm)/n^2;
+#       return countnz(B_nev)/n^2, countnz(B_fmm)/n^2;
 #   else
 #       return countnz(B_fmm)/n^2;
 #   end
-    return B_ept, B_fmm
+    return B_nev, B_fmm
 end
 #----------------------------------------------------------------
 
@@ -1482,17 +1419,17 @@ function plot_timings()
     #------------------------------------------------------------
     size = [1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6];
     #------------------------------------------------------------
-    ept_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
+    nev_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
     fmm_omega = [0.000610, 0.008427,  0.087300,    1.203448,     12.367116];
     #------------------------------------------------------------
-    ept_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
+    nev_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
     fmm_deriv = [0.001503, 0.023390,  0.286124,    3.228055,     39.302156];
     #------------------------------------------------------------
-    ept_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
+    nev_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
     fmm_gener = [0.003978, 0.103288,  1.768498,   22.576165,   256.542071];
     #------------------------------------------------------------
 
-    h = plot(size=(600,450), title="Timings", xlabel="number of vertices",
+    h = plot(size=(570,450), title="Timings", xlabel="number of vertices",
                                               ylabel="time per function call (sec)",
                                               xlim=(10^(+1.7), 10^(+6.3)),
                                               ylim=(10^(-3.7), 10^(+2.7)),
