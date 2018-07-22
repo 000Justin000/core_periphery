@@ -10,6 +10,7 @@ using NearestNeighbors;
 using StochasticCP;
 using StochasticCP_SGD;
 using StochasticCP_FMM;
+using NLsolve
 
 #----------------------------------------------------------------
 function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
@@ -296,6 +297,43 @@ function plot_underground(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
+
+#----------------------------------------------------------------
+function analyze_underground(A,C)
+    degree = vec(sum(A,1));
+
+    dat_world = readcsv("data/open_airlines/airports.dat");
+    dat_US = readcsv("data/open_airlines/enplanements.csv");
+    dat_US_code = dat_US[:, 4];
+    dat_US_epmt = dat_US[:,10];
+
+    code2id = Dict(airports_dat[i,5] => i for i in 1:7184);
+
+    indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
+    code_vec = [dat_US_code[id] for id in indices];
+    empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
+    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
+    C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
+
+    # random forest prediction
+    labels = convert(Array{Float64,1}, empt_vec);
+    features1  = reshape(dgrs_vec, :, 1);
+    features2  = reshape(C_vec, :, 1);
+    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    model1  =  build_forest(labels, features1,  1, 10);
+    model2  =  build_forest(labels, features2,  1, 10);
+    model12 =  build_forest(labels, features12, 2, 10);
+    r1  = nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7);
+    r2  = nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7);
+    r12 = nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7);
+
+    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
+
+    return code_vec, empt_vec, dgrs_vec, C_vec;
+end
+#----------------------------------------------------------------
+
+
 #----------------------------------------------------------------
 function hist_openflight_probE(A, B, D)
     @assert issymmetric(A);
@@ -558,7 +596,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -609,6 +647,7 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
 
     if (epsilon > 0)
         # D = Haversine_matrix(coordinates);
@@ -648,6 +687,43 @@ function plot_openflight(A, C, coords, option="degree", filename="output")
     return h;
 end
 #----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
+function analyze_openflight(A,C)
+    degree = vec(sum(A,1));
+
+    dat_world = readcsv("data/open_airlines/airports.dat");
+    dat_US = readcsv("data/open_airlines/enplanements.csv");
+    dat_US_code = dat_US[:, 4];
+    dat_US_epmt = dat_US[:,10];
+
+    code2id = Dict(airports_dat[i,5] => i for i in 1:7184);
+
+    indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
+    code_vec = [dat_US_code[id] for id in indices];
+    empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
+    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
+    C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
+
+    # random forest prediction
+    labels = convert(Array{Float64,1}, empt_vec);
+    features1  = reshape(dgrs_vec, :, 1);
+    features2  = reshape(C_vec, :, 1);
+    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    model1  =  build_forest(labels, features1,  1, 10);
+    model2  =  build_forest(labels, features2,  1, 10);
+    model12 =  build_forest(labels, features12, 2, 10);
+    r1  = nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7);
+    r2  = nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7);
+    r12 = nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7);
+
+    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
+
+    return code_vec, empt_vec, dgrs_vec, C_vec;
+end
+#----------------------------------------------------------------
+
 
 #----------------------------------------------------------------
 function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
@@ -745,83 +821,88 @@ function plot_brightkite(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
-# #----------------------------------------------------------------
-# function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
-#     #--------------------------------
-#     # load airport data and location
-#     #--------------------------------
-#     user_dat = readdlm("data/livejournal/uid2crd");
-#     num_users = size(user_dat,1);
-#     #--------------------------------
-#     @assert length(user_dat[:,1]) == length(Set(user_dat[:,1]))
-#     #--------------------------------
-#
-#     #--------------------------------
-#     no2id = Dict{Int64, Int64}();
-#     id2no = Dict{Int64, Int64}();
-#     id2lc = Dict{Int64, Array{Float64,1}}();
-#     #--------------------------------
-#     for i in 1:num_users
-#         no2id[i] = int(user_dat[i,1]);
-#         id2no[int(user_dat[i,1])] = i;
-#         #----------------------------
-#         id2lc[int(user_dat[i,1])] = user_dat[i,2:3];
-#     end
-#     #--------------------------------
-#
-#     # continue
-#
-#     #--------------------------------
-#     W = spzeros(num_people,num_people);
-#     #--------------------------------
-#     # the adjacency matrix
-#     #--------------------------------
-#     edges_dat = convert(Array{Int64,2}, readdlm("data/brightkite/Brightkite_edges.txt"));
-#     num_edges = size(edges_dat,1);
-#     for i in 1:num_edges
-#         id1 = edges_dat[i,1];
-#         id2 = edges_dat[i,2];
-#         if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
-#             W[id2no[id1], id2no[id2]] += 1;
-#         end
-#     end
-#     #--------------------------------
-#     W = W + W';
-#     #--------------------------------
-#     A = spones(sparse(W));
-#     #--------------------------------
-#
-#     #--------------------------------
-#     # compute coordinates
-#     #--------------------------------
-#     coordinates = [];
-#     coords = zeros(2,num_people);
-#     for i in 1:num_people
-#         coord = id2lc[no2id[i]];
-#         coord = coord + rand(2);
-#         coord[1] = min(90, max(-90, coord[1]));
-#         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
-#         push!(coordinates, coord);
-#         coords[:,i] = flipdim(coord,1);
-#     end
-#     #--------------------------------
-#
-#     opt = Dict();
-#     opt["ratio"] = ratio;
-#     opt["thres"] = thres;
-#     opt["max_num_step"] = max_num_step;
-#
-#     if (epsilon > 0)
-#         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-#         B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-#         D = nothing;
-#     else
-#         error("option not supported.");
-#     end
-#
-#     return A, B, C, D, coordinates, epsilon;
-# end
-# #----------------------------------------------------------------
+#----------------------------------------------------------------
+function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+    #--------------------------------
+    # load airport data and location
+    #--------------------------------
+    user_dat = readdlm("data/livejournal/uid2crd");
+    num_users = size(user_dat,1);
+    #--------------------------------
+    @assert length(user_dat[:,1]) == length(Set(user_dat[:,1]))
+    #--------------------------------
+
+    #--------------------------------
+    no2id = Dict{Int64, Int64}();
+    id2no = Dict{Int64, Int64}();
+    id2lc = Dict{Int64, Array{Float64,1}}();
+    #--------------------------------
+    for i in 1:num_users
+        no2id[i] = Int64(user_dat[i,1]);
+        id2no[Int64(user_dat[i,1])] = i;
+        #----------------------------
+        id2lc[Int64(user_dat[i,1])] = user_dat[i,2:3];
+    end
+    #--------------------------------
+
+    #--------------------------------
+    I = Vector{Int64}();
+    J = Vector{Int64}();
+    V = Vector{Float64}();
+    #--------------------------------
+    # the adjacency matrix
+    #--------------------------------
+    edges_dat = convert(Array{Int64,2}, readdlm("data/livejournal/friendships"));
+    num_edges = size(edges_dat,1);
+    for i in 1:num_edges
+        id1 = edges_dat[i,1];
+        id2 = edges_dat[i,2];
+        if (typeof(id1) == Int64 && typeof(id2) == Int64 && haskey(id2lc,id1) && haskey(id2lc,id2))
+            push!(I, id2no[id1]);
+            push!(J, id2no[id2]);
+            push!(V, 1.0);
+        end
+    end
+    #--------------------------------
+    W = sparse(I,J,V, num_users,num_users,max);
+    #--------------------------------
+    W = W + W';
+    #--------------------------------
+    A = spones(sparse(W));
+    #--------------------------------
+
+    #--------------------------------
+    # compute coordinates
+    #--------------------------------
+    coordinates = [];
+    coords = zeros(2,num_users);
+    for i in 1:num_users
+        coord = id2lc[no2id[i]];
+        coord = coord + rand(2);
+        coord[1] = min(90, max(-90, coord[1]));
+        coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
+        push!(coordinates, coord);
+        coords[:,i] = flipdim(coord,1);
+    end
+    #--------------------------------
+
+    opt = Dict();
+    opt["ratio"] = ratio;
+    opt["thres"] = thres;
+    opt["max_num_step"] = max_num_step;
+
+    if (epsilon > 0)
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        # B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = nothing;
+        D = nothing;
+    else
+        error("option not supported.");
+    end
+
+    return A, B, C, D, coordinates, epsilon;
+end
+#----------------------------------------------------------------
 #
 # #----------------------------------------------------------------
 # function plot_livejournal(A, C, coords, option="degree", filename="output")
@@ -895,9 +976,8 @@ function plot_mushroom(A, C, coords, option="degree", filename="output")
 end
 #----------------------------------------------------------------
 
-
 #----------------------------------------------------------------
-function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -913,6 +993,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
 
     #--------------------------------
     if (epsilon > 0)
@@ -921,9 +1002,11 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
 
 #       B = StochasticCP.model_gen(C, D, epsilon);
-        B0 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B1 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
         B2 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B3 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+
+        B = [B1, B2, B3];
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
@@ -934,7 +1017,7 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
         B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B0, B1, B2, C, D, coordinates, epsilon;
+    return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
@@ -1324,7 +1407,7 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="error");
     savefig(h, "results/expected_degrees.svg");
 
-    return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm;
+    return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm, epd_nev, epd_fmm;
 end
 #----------------------------------------------------------------
 
@@ -1356,33 +1439,25 @@ function timeit(n, metric, CoM2, epsilon)
     bt = BallTree(coords, metric, leafsize=1);
     #------------------------------------------------------------
 
-    #------------------------------------------------------------
-    II = Int64[];
-    JJ = Int64[];
-    VV = Float64[];
-    #------------------------------------------------------------
-    for counter in 1:10*n
-        id_1 = rand(1:n);
-        id_2 = rand(1:n);
-        if (id_1 != id_2)
-            if (id_1 > id_2)
-                id_1, id_2 = id_2, id_1
-            end
+    CC = Dict(100 => -2.25, 1000 => -3.77, 10000 => -5.13, 100000 => -6.43, 1000000 => -7.69);
 
-            push!(II, id_1);
-            push!(JJ, id_2);
-            push!(VV, 1.0);
-        end
-    end
+#   #------------------------------------------------------------
+#   dmean = sqrt(3.0)/3.0;
+#   #------------------------------------------------------------
+#   function ff!(F, x, n)
+#       F[1] = 0.0025 * (exp(2*x[1]+2.0) / (exp(2*x[1]+2.0) + dmean^epsilon)) +
+#              0.0950 * (exp(2*x[1]+1.0) / (exp(2*x[1]+1.0) + dmean^epsilon)) +
+#              0.9025 * (exp(2*x[1]+0.0) / (exp(2*x[1]+0.0) + dmean^epsilon)) - 10.0/n;
+#   end
+#   #------------------------------------------------------------
+#   f!(F,x) = ff!(F,x,n);
+#   #------------------------------------------------------------
+#   C_p = nlsolve(f!,[0.0]).zero[1];
+#   #------------------------------------------------------------
+    C = ones(n) * CC[n];
     #------------------------------------------------------------
-    A = sparse(II,JJ,VV, n,n, max);
+    C[1:Int64(ceil(0.05*n))] += 1.0;
     #------------------------------------------------------------
-    A = A + A';
-    #------------------------------------------------------------
-
-    C = ones(n) * ((-0.5) * log(sqrt(3) * (n/5 - 1)));
-
-    println("start");
 
     if (n <= 1.0e4)
         #------------------------------------------------------------
@@ -1396,21 +1471,16 @@ function timeit(n, metric, CoM2, epsilon)
         #------------------------------------------------------------
         D = D + D';
         #------------------------------------------------------------
-#       @time (omega_nev = StochasticCP.omega(A, C, D, epsilon);)
-#       @time (epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)); srd = StochasticCP.sum_rho_logD(C,D,epsilon);)
-        @time (B_nev = StochasticCP.model_gen(C, D, epsilon));
+        @time [B_nev = StochasticCP.model_gen(C, D, epsilon)];
+        @time [omega_nev = StochasticCP.omega(B_nev, C, D, epsilon)];
+        @time [epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)), srd = StochasticCP.sum_rho_logD(C,D,epsilon)];
+        println(countnz(B_nev)/n);
     end
 
-#   @time (omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, A, 0.0));
-#   @time (epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0));
-    @time (B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0)));
-
-#   if (n <= 1.0e4)
-#       return countnz(B_nev)/n^2, countnz(B_fmm)/n^2;
-#   else
-#       return countnz(B_fmm)/n^2;
-#   end
-    return B_nev, B_fmm
+    @time [B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0))];
+    @time [omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, B_fmm, 0.0)];
+    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0)];
+    println(countnz(B_fmm)/n);
 end
 #----------------------------------------------------------------
 
@@ -1419,14 +1489,13 @@ function plot_timings()
     #------------------------------------------------------------
     size = [1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6];
     #------------------------------------------------------------
-    nev_omega = [0.002032, 0.116223, 17.009791, 1700.000000, 170000.000000];
-    fmm_omega = [0.000610, 0.008427,  0.087300,    1.203448,     12.367116];
+    nev_gener = [0.000248, 0.016806,  2.462479,  246.000000,  24600.000000];
+    nev_omega = [0.000672, 0.078040,  9.554892,  955.000000,  95500.000000];
+    nev_deriv = [0.000836, 0.100245, 13.355793, 1336.000000, 133600.000000];
     #------------------------------------------------------------
-    nev_deriv = [0.001447, 0.111002, 26.671128, 2600.000000, 260000.000000];
-    fmm_deriv = [0.001503, 0.023390,  0.286124,    3.228055,     39.302156];
-    #------------------------------------------------------------
-    nev_gener = [0.000786, 0.039290,  4.137897,  413.000000, 41300.000000];
-    fmm_gener = [0.003978, 0.103288,  1.768498,   22.576165,   256.542071];
+    fmm_gener = [0.001963, 0.043340,  0.761756,    9.198479,    139.583723];
+    fmm_omega = [0.000327, 0.004138,  0.058405,    0.784479,      7.757879];
+    fmm_deriv = [0.000862, 0.014218,  0.224220,    2.639909,     26.322895];
     #------------------------------------------------------------
 
     h = plot(size=(570,450), title="Timings", xlabel="number of vertices",

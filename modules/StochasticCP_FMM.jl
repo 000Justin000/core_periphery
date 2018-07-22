@@ -129,6 +129,8 @@ module StochasticCP_FMM
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
     function omega!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE)
+        # println(" - da"); # debug
+
         n = length(C);
 
         #-------------------------------------------------------------------------
@@ -370,13 +372,15 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # gradient of objective function
     #-----------------------------------------------------------------------------
-    function negative_gradient_omega!(C, coords, CoM2, dist, epsilon, bt, ratio, d, sum_logD_inE, storage)
+    function negative_gradient_omega!(C, coords, CoM2, dist, epsilon, bt, ratio, d, sum_logD_inE, storage, opt_epsilon)
+        # print(maximum(C), "    ", minimum(C), "    ", mean(C), "    di"); # debug
+
         epd, srd, fmm_tree = epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
 
         G = d - epd;
 
         storage[1:end-1] = -G;
-        storage[end] = -(srd - sum_logD_inE);
+        storage[end] = opt_epsilon ? -(srd - sum_logD_inE) : 0.0;
     end
     #-----------------------------------------------------------------------------
 
@@ -389,7 +393,7 @@ module StochasticCP_FMM
                        CoM2,
                        metric = Euclidean(),
                        epsilon = 1;
-                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0))
+                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0, "opt_epsilon"=>true))
         @assert issymmetric(A);
         A = spones(A);
         n = size(A,1);
@@ -418,7 +422,7 @@ module StochasticCP_FMM
         bt = BallTree(coords, metric, leafsize=1);
 
         f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], A, sum_logD_inE);
-        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], d, sum_logD_inE, storage)
+        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], d, sum_logD_inE, storage, opt["opt_epsilon"])
 
         #-----------------------------------------------------------------------------
         println("starting optimization:")
@@ -432,7 +436,7 @@ module StochasticCP_FMM
         #                                                                   allow_f_increases = true,
         #                                                                   iterations = opt["max_num_step"]);
         #-----------------------------------------------------------------------------
-        precond = speye(length(C)+1); precond[end,end] = length(C);
+        precond = speye(length(C)+1) * length(C); precond[end,end] *= length(C);
         optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
                                                                                       iterations = opt["max_num_step"],
                                                                                       show_trace = true,
