@@ -158,12 +158,21 @@ using Optim
 
         n = size(C,1);
 
-        A = spzeros(n,n);
+        I = Vector{Int64}();
+        J = Vector{Int64}();
+        V = Vector{Float64}();
+
         for j in 1:n
             for i in j+1:n
-                A[i,j] = rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]^epsilon) ? 1 : 0;
+                if (rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]^epsilon))
+                    push!(I,i)
+                    push!(J,j)
+                    push!(V,1.0)
+                end
             end
         end
+
+        A = sparse(I,J,V, n,n,max);
 
         return A + A';
     end
