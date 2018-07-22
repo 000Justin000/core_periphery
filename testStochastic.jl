@@ -302,34 +302,34 @@ end
 function analyze_underground(A,C)
     degree = vec(sum(A,1));
 
-    dat_world = readcsv("data/open_airlines/airports.dat");
-    dat_US = readcsv("data/open_airlines/enplanements.csv");
-    dat_US_code = dat_US[:, 4];
-    dat_US_epmt = dat_US[:,10];
-
-    code2id = Dict(airports_dat[i,5] => i for i in 1:7184);
-
-    indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
-    code_vec = [dat_US_code[id] for id in indices];
-    empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
-    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
-    C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
-
-    # random forest prediction
-    labels = convert(Array{Float64,1}, empt_vec);
-    features1  = reshape(dgrs_vec, :, 1);
-    features2  = reshape(C_vec, :, 1);
-    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
-    model1  =  build_forest(labels, features1,  1, 10);
-    model2  =  build_forest(labels, features2,  1, 10);
-    model12 =  build_forest(labels, features12, 2, 10);
-    r1  = nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7);
-    r2  = nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7);
-    r12 = nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7);
-
-    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
-
-    return code_vec, empt_vec, dgrs_vec, C_vec;
+#    dat_world = readcsv("data/open_airlines/airports.dat");
+#    dat_US = readcsv("data/open_airlines/enplanements.csv");
+#    dat_US_code = dat_US[:, 4];
+#    dat_US_epmt = dat_US[:,10];
+#
+#    code2id = Dict(airports_dat[i,5] => i for i in 1:7184);
+#
+#    indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
+#    code_vec = [dat_US_code[id] for id in indices];
+#    empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
+#    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
+#    C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
+#
+#    # random forest prediction
+#    labels = convert(Array{Float64,1}, empt_vec);
+#    features1  = reshape(dgrs_vec, :, 1);
+#    features2  = reshape(C_vec, :, 1);
+#    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+#    model1  =  build_forest(labels, features1,  1, 10);
+#    model2  =  build_forest(labels, features2,  1, 10);
+#    model12 =  build_forest(labels, features12, 2, 10);
+#    r1  = nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7);
+#    r2  = nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7);
+#    r12 = nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7);
+#
+#    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
+#
+#    return code_vec, empt_vec, dgrs_vec, C_vec;
 end
 #----------------------------------------------------------------
 
