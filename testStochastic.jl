@@ -10,7 +10,8 @@ using NearestNeighbors;
 using StochasticCP;
 using StochasticCP_SGD;
 using StochasticCP_FMM;
-using NLsolve
+using NLsolve;
+using DecisionTree;
 
 #----------------------------------------------------------------
 function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
@@ -249,26 +250,24 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=10000)
-    data = MAT.matread("data/london_underground/london_underground_clean.mat");
+function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=10000, opt_epsilon=true)
+    dat = MAT.matread("data/london_underground/london_underground_clean_traffic.mat");
 
-    W = [Int(sum(list .!= 0)) for list in data["Labelled_Network"]];
+    W = [Int(sum(list .!= 0)) for list in dat["Labelled_Network"]];
     A = spones(sparse(W));
 
     opt = Dict()
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
 
-    #---------------------------------------------------------------------------------------------
-    # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
-    #---------------------------------------------------------------------------------------------
     if (epsilon > 0)
-        D = Haversine_matrix(data["Tube_Locations"]);
+        D = Haversine_matrix(dat["Tube_Locations"]);
         C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     elseif (epsilon < 0)
-        D = rank_distance_matrix(Haversine_matrix(data["Tube_Locations"]));
+        D = rank_distance_matrix(Haversine_matrix(dat["Tube_Locations"]));
         C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
     else
@@ -277,9 +276,10 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000
         B = StochasticCP.model_gen(C, D, 1);
     end
 
-    return A, B, C, D, data["Tube_Locations"], epsilon;
+    return A, B, C, D, dat["Tube_Locations"], epsilon;
 end
 #----------------------------------------------------------------
+
 
 #----------------------------------------------------------------
 function plot_underground(A, C, coords, option="degree", filename="output")
@@ -302,34 +302,26 @@ end
 function analyze_underground(A,C)
     degree = vec(sum(A,1));
 
-#    dat_world = readcsv("data/open_airlines/airports.dat");
-#    dat_US = readcsv("data/open_airlines/enplanements.csv");
-#    dat_US_code = dat_US[:, 4];
-#    dat_US_epmt = dat_US[:,10];
-#
-#    code2id = Dict(airports_dat[i,5] => i for i in 1:7184);
-#
-#    indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
-#    code_vec = [dat_US_code[id] for id in indices];
-#    empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
-#    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
-#    C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
-#
-#    # random forest prediction
-#    labels = convert(Array{Float64,1}, empt_vec);
-#    features1  = reshape(dgrs_vec, :, 1);
-#    features2  = reshape(C_vec, :, 1);
-#    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
-#    model1  =  build_forest(labels, features1,  1, 10);
-#    model2  =  build_forest(labels, features2,  1, 10);
-#    model12 =  build_forest(labels, features12, 2, 10);
-#    r1  = nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7);
-#    r2  = nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7);
-#    r12 = nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7);
-#
-#    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
-#
-#    return code_vec, empt_vec, dgrs_vec, C_vec;
+    dat = MAT.matread("data/london_underground/london_underground_clean_traffic.mat");
+
+    # random forest prediction
+    dgrs_vec = degree;
+    C_vec = C;
+
+    labels = convert(Array{Float64,1}, dat["Traffic"]);
+    features1  = reshape(dgrs_vec, :, 1);
+    features2  = reshape(C_vec, :, 1);
+    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    model1  =  build_forest(labels, features1,  1, 100);
+    model2  =  build_forest(labels, features2,  1, 100);
+    model12 =  build_forest(labels, features12, 2, 100);
+    r1  = nfoldCV_forest(labels, features1,  1, 100, 3, 5, 0.7);
+    r2  = nfoldCV_forest(labels, features2,  1, 100, 3, 5, 0.7);
+    r12 = nfoldCV_forest(labels, features12, 2, 100, 3, 5, 0.7);
+
+    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
+
+    return labels, features1, features2;
 end
 #----------------------------------------------------------------
 
@@ -698,7 +690,7 @@ function analyze_openflight(A,C)
     dat_US_code = dat_US[:, 4];
     dat_US_epmt = dat_US[:,10];
 
-    code2id = Dict(airports_dat[i,5] => i for i in 1:7184);
+    code2id = Dict(dat_world[i,5] => i for i in 1:7184);
 
     indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
     code_vec = [dat_US_code[id] for id in indices];
@@ -711,16 +703,16 @@ function analyze_openflight(A,C)
     features1  = reshape(dgrs_vec, :, 1);
     features2  = reshape(C_vec, :, 1);
     features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
-    model1  =  build_forest(labels, features1,  1, 10);
-    model2  =  build_forest(labels, features2,  1, 10);
-    model12 =  build_forest(labels, features12, 2, 10);
-    r1  = nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7);
-    r2  = nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7);
-    r12 = nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7);
+    model1  =  build_forest(labels, features1,  1, 100);
+    model2  =  build_forest(labels, features2,  1, 100);
+    model12 =  build_forest(labels, features12, 2, 100);
+    r1  = nfoldCV_forest(labels, features1,  1, 100, 3, 5, 0.7);
+    r2  = nfoldCV_forest(labels, features2,  1, 100, 3, 5, 0.7);
+    r12 = nfoldCV_forest(labels, features12, 2, 100, 3, 5, 0.7);
 
     println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
 
-    return code_vec, empt_vec, dgrs_vec, C_vec;
+    return code_vec, labels, features1, features2;
 end
 #----------------------------------------------------------------
 

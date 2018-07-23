@@ -48,7 +48,7 @@ using Optim
     #-----------------------------------------------------------------------------
     # gradient of objective function
     #-----------------------------------------------------------------------------
-    function negative_gradient_omega!(A, C, D, epsilon, sum_logD_inE, storage)
+    function negative_gradient_omega!(A, C, D, epsilon, sum_logD_inE, storage, opt_epsilon)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
@@ -56,7 +56,7 @@ using Optim
         srd = sum_rho_logD(C,D,epsilon);
 
         storage[1:end-1] = -G;
-        storage[end] = -(srd - sum_logD_inE);
+        storage[end] = opt_epsilon ? -(srd - sum_logD_inE) : 0.0;
     end
     #-----------------------------------------------------------------------------
 
@@ -66,7 +66,7 @@ using Optim
     #---------------------------------------------------------------------------------------------
     # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
     #---------------------------------------------------------------------------------------------
-    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6, "max_num_step"=>10000))
+    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6, "max_num_step"=>10000, "opt_epsilon"=>true))
         @assert issymmetric(A);
         @assert issymmetric(D);
 
@@ -93,7 +93,7 @@ using Optim
         #-----------------------------------------------------------------------------
 
         f(x)           = -omega(A,x[1:end-1],D,x[end]);
-        g!(storage, x) =  negative_gradient_omega!(A,x[1:end-1],D,x[end],sum_logD_inE,storage)
+        g!(storage, x) =  negative_gradient_omega!(A,x[1:end-1],D,x[end],sum_logD_inE,storage, opt["opt_epsilon"])
 
         #-----------------------------------------------------------------------------
         println("starting optimization:")
