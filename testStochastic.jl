@@ -703,16 +703,22 @@ function analyze_openflight(A,C)
     features1  = reshape(dgrs_vec, :, 1);
     features2  = reshape(C_vec, :, 1);
     features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
-    model1  =  build_forest(labels, features1,  1, 100);
-    model2  =  build_forest(labels, features2,  1, 100);
-    model12 =  build_forest(labels, features12, 2, 100);
-    r1  = nfoldCV_forest(labels, features1,  1, 100, 3, 5, 0.7);
-    r2  = nfoldCV_forest(labels, features2,  1, 100, 3, 5, 0.7);
-    r12 = nfoldCV_forest(labels, features12, 2, 100, 3, 5, 0.7);
+    model1  =  build_forest(labels, features1,  1, 10);
+    model2  =  build_forest(labels, features2,  1, 10);
+    model12 =  build_forest(labels, features12, 2, 10);
+
+    r1  = Vector{Float64}();
+    r2  = Vector{Float64}();
+    r12 = Vector{Float64}();
+    for itr in 1:10
+        r1  = vcat(r1,  nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7));
+        r2  = vcat(r2,  nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7));
+        r12 = vcat(r12, nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7));
+    end
 
     println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
 
-    return code_vec, labels, features1, features2;
+    return code_vec, labels, features1, features2, r1, r2, r12;
 end
 #----------------------------------------------------------------
 
@@ -913,14 +919,14 @@ end
 # #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_mushroom(fname, epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load fungals data
     #--------------------------------
-    data = MAT.matread("data/fungal_networks/Conductance/Ag_M_I+4R_U_N_42d_1.mat");
+    dat = MAT.matread("data/fungal_networks/Conductance/" * fname);
 #   data = MAT.matread("data/fungal_networks/Conductance/Pv_M_5xI_U_N_35d_1.mat");
-    coords = data["coordinates"]';
-    A = spones(data["A"]);
+    coords = dat["coordinates"]';
+    A = spones(dat["A"]);
     #--------------------------------
 
     coordinates = [[coords[1,i], coords[2,i]] for i in 1:size(coords,2)];
@@ -929,10 +935,12 @@ function test_mushroom(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
 
     #--------------------------------
     if (epsilon > 0)
-        D = Euclidean_matrix(coordinates);
+        # D = Euclidean_matrix(coordinates);
+        D = nothing;
         # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
         C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
@@ -967,6 +975,32 @@ function plot_mushroom(A, C, coords, option="degree", filename="output")
     return h;
 end
 #----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function analyze_mushroom()
+    fnames = filter(x->contains(x,".mat"), readdir("data/fungal_networks/Conductance"));
+
+    dgrs4network = Dict{String,Vector{Float64}}();
+    C4network    = Dict{String,Vector{Float64}}();
+    eps4network  = Dict{String,Float64}();
+
+    for fname in fnames
+        try
+            A,B,C,D,coords,epsilon = test_mushroom(fname, 1.0; ratio=0.00, max_num_step=100, opt_epsilon=true);
+            MAT.matwrite("results/fungal_networks/Conductance/" * fname, Dict("A" => A, "B" => B, "C" => C, "D" => D, "coords" => coords, "epsilon" => epsilon));
+
+            dgrs4network[fname] = vec(sum(A,1));
+            C4network[fname] = C;
+            eps4network[fname] = epsilon;
+        catch y
+            println(y);
+        end
+    end
+
+    return dgrs4network, C4network, eps4network;
+end
+#----------------------------------------------------------------
+
 
 #----------------------------------------------------------------
 function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
