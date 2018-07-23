@@ -366,7 +366,7 @@ function hist_openflight_probE(A, B, D)
                                                  xscale=:log10,
                                                  yscale=:log10,
                                                  framestyle=:box,
-                                                 grid="on");
+                                                 grid="off");
 
     AprobL = linreg(log10.(0.5e6:1.0e6:1.15e7), log10.((Ahist.weights./Dhist.weights)[1:12]));
     BprobL = linreg(log10.(0.5e6:1.0e6:1.15e7), log10.((Bhist.weights./Dhist.weights)[1:12]));
@@ -402,7 +402,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
                               ylabel="vertex degrees (naive)",
                               xlim=(-2, 80),
                               ylim=(-2, 80),
-                              grid="on",
+                              grid="off",
                               framestyle=:box,
                               legend=:topleft);
     plot!(h1, -2:80, -2:80, color="red", label="ideal");
@@ -413,7 +413,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
                               ylabel="vertex degrees (FMM)",
                               xlim=(-2, 80),
                               ylim=(-2, 80),
-                              grid="on",
+                              grid="off",
                               framestyle=:box,
                               legend=:topleft);
     plot!(h2, -2:80, -2:80, color="red", label="ideal");
@@ -469,7 +469,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
                               xlim=(0.00,1.40),
                               ylim=(0, 2000),
                               xticks=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4],
-                              grid="on",
+                              grid="off",
                               framestyle=:box,
                               legend=:topleft);
     #------------------------------------------------------------
@@ -1382,21 +1382,21 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
 
-    order = sortperm(C, rev=false);
+    order = sortperm(vec(sum(A,1)), rev=false);
 
     h = plot(size=(270,260), title="",
                              xlabel="vertex indices",
                              ylabel="expected degrees",
-#                            xlim=(1,277),
-#                            ylim=(-1.0, 80.0),
-                             grid="on",
+                             xlim=(1,277),
+                             ylim=(-1.0, 80.0),
+                             grid="off",
                              framestyle=:box,
                              legend=:topleft);
 
-    plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=2.50, color="grey",   label="original degrees");
-    plot!(h, epd_nev[order],                linestyle=:solid, linewidth=1.30, color="blue",   label="naive");
-    plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=0.50, color="orange", label="FMM");
-    plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="error");
+    plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=3.50, color="grey",   label="original degrees");
+    plot!(h, epd_nev[order],                linestyle=:solid, linewidth=2.00, color="blue",   label="naive");
+    plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=1.00, color="orange", label="FMM");
+    plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="FMM error");
     savefig(h, "results/expected_degrees.svg");
 
     return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm, epd_nev, epd_fmm;
@@ -1410,7 +1410,7 @@ function plot_cs_correlation(C_nev, C_fmm)
                              ylabel="core scores (FMM)",
                              xlim=(-5.35,0.35),
                              ylim=(-5.35,0.35),
-                             grid="on",
+                             grid="off",
                              framestyle=:box,
                              legend=:topleft);
 
