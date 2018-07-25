@@ -12,6 +12,9 @@ using StochasticCP_SGD;
 using StochasticCP_FMM;
 using NLsolve;
 using DecisionTree;
+using ScikitLearn;
+using ScikitLearn.CrossValidation: cross_val_score;
+@sk_import linear_model: LogisticRegression;
 
 #----------------------------------------------------------------
 function Euclidean_CoM2(coord1, coord2, m1=1.0, m2=1.0)
@@ -312,9 +315,6 @@ function analyze_underground(A,C)
     features1  = reshape(dgrs_vec, :, 1);
     features2  = reshape(C_vec, :, 1);
     features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
-    model1  =  build_forest(labels, features1,  1, 100);
-    model2  =  build_forest(labels, features2,  1, 100);
-    model12 =  build_forest(labels, features12, 2, 100);
     r1  = nfoldCV_forest(labels, features1,  1, 100, 3, 5, 0.7);
     r2  = nfoldCV_forest(labels, features2,  1, 100, 3, 5, 0.7);
     r12 = nfoldCV_forest(labels, features12, 2, 100, 3, 5, 0.7);
@@ -355,9 +355,9 @@ function hist_openflight_probE(A, B, D)
     end
     #------------------------------------------------------------
 
-    Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
-    Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
-    Dhist = fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+    Ahist = StatsBase.fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+    Bhist = StatsBase.fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
+    Dhist = StatsBase.fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 
     h = plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
                                                  ylabel=L"\rm{edge\ probability}",
@@ -698,27 +698,51 @@ function analyze_openflight(A,C)
     dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
     C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
 
-    # random forest prediction
     labels = convert(Array{Float64,1}, empt_vec);
     features1  = reshape(dgrs_vec, :, 1);
     features2  = reshape(C_vec, :, 1);
     features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
-    model1  =  build_forest(labels, features1,  1, 10);
-    model2  =  build_forest(labels, features2,  1, 10);
-    model12 =  build_forest(labels, features12, 2, 10);
 
+    #--------------------------------------------------
+    n_subfeatures=0; max_depth=-1; min_samples_leaf=1; min_samples_split=2; min_purity_increase=0.0;
+    #--------------------------------------------------
+    model1  = build_tree(labels, features1,  0, 0, 5); model1  = prune_tree(model1,  0.9);
+    model2  = build_tree(labels, features2,  0, 0, 5); model2  = prune_tree(model2,  0.9);
+    model12 = build_tree(labels, features12, 0, 0, 5); model12 = prune_tree(model12, 0.9);
+    #--------------------------------------------------
+    print_tree(model12);
+    #--------------------------------------------------
+
+    #--------------------------------------------------
+    # use decision tree to predict empt
+    #--------------------------------------------------
     r1  = Vector{Float64}();
     r2  = Vector{Float64}();
     r12 = Vector{Float64}();
     for itr in 1:10
-        r1  = vcat(r1,  nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7));
-        r2  = vcat(r2,  nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7));
-        r12 = vcat(r12, nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7));
+        r1  = vcat(r1,  nfoldCV_tree(labels, features1,  0.9, 3));
+        r2  = vcat(r2,  nfoldCV_tree(labels, features2,  0.9, 3));
+        r12 = vcat(r12, nfoldCV_tree(labels, features12, 0.9, 3));
     end
+    #--------------------------------------------------
+
+
+#   #--------------------------------------------------
+#   # use random forest to predict empt
+#   #--------------------------------------------------
+#   r1  = Vector{Float64}();
+#   r2  = Vector{Float64}();
+#   r12 = Vector{Float64}();
+#   for itr in 1:10
+#       r1  = vcat(r1,  nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7));
+#       r2  = vcat(r2,  nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7));
+#       r12 = vcat(r12, nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7));
+#   end
+#   #--------------------------------------------------
 
     println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
 
-    return code_vec, labels, features1, features2, r1, r2, r12;
+    return code_vec, labels, features1, features2, r1, r2, r12, model12;
 end
 #----------------------------------------------------------------
 
@@ -978,26 +1002,59 @@ end
 
 #----------------------------------------------------------------
 function analyze_mushroom()
-    fnames = filter(x->contains(x,".mat"), readdir("data/fungal_networks/Conductance"));
+    fnames = filter(x->contains(x,".mat"), readdir("results/fungal_networks/Conductance"));
 
     dgrs4network = Dict{String,Vector{Float64}}();
     C4network    = Dict{String,Vector{Float64}}();
     eps4network  = Dict{String,Float64}();
 
-    for fname in fnames
-        try
-            A,B,C,D,coords,epsilon = test_mushroom(fname, 1.0; ratio=0.00, max_num_step=100, opt_epsilon=true);
-            MAT.matwrite("results/fungal_networks/Conductance/" * fname, Dict("A" => A, "B" => B, "C" => C, "D" => D, "coords" => coords, "epsilon" => epsilon));
+#   for fname in fnames
+#       try
+#           A,B,C,D,coords,epsilon = test_mushroom(fname, 1.0; ratio=0.00, max_num_step=100, opt_epsilon=true);
+#           MAT.matwrite("results/fungal_networks/Conductance/" * fname, Dict("A" => A, "B" => B, "C" => C, "coords" => coords, "epsilon" => epsilon));
+#
+#           dgrs4network[fname] = vec(sum(A,1));
+#           C4network[fname] = C;
+#           eps4network[fname] = epsilon;
+#       catch y
+#           println(y);
+#       end
+#   end
 
-            dgrs4network[fname] = vec(sum(A,1));
-            C4network[fname] = C;
-            eps4network[fname] = epsilon;
-        catch y
-            println(y);
-        end
+    xx = Vector{Vector{Float64}}();
+    yy = Vector{String}();
+    for fname in fnames
+        dat = MAT.matread("results/fungal_networks/Conductance/" * fname);
+
+        dgrs4network[fname] = vec(sum(dat["A"],1));
+        C4network[fname] = dat["C"];
+        eps4network[fname] = dat["epsilon"];
+
+        xvec = Vector{Float64}();
+
+        #-----------------------------------------
+        push!(xvec, length(C4network[fname]));
+        #-----------------------------------------
+        push!(xvec, mean(dgrs4network[fname]));
+        push!(xvec, maximum(dgrs4network[fname]));
+        push!(xvec, std(dgrs4network[fname]));
+        #-----------------------------------------
+        push!(xvec, maximum(C4network[fname]));
+        push!(xvec, mean(C4network[fname]));
+        push!(xvec, std(C4network[fname]));
+        #-----------------------------------------
+
+        push!(xx, xvec);
+        push!(yy, join(split(fname, "_")[1:end-2], "_"));
     end
 
-    return dgrs4network, C4network, eps4network;
+    X = [xvec[i] for xvec in xx, i in 1:length(xx[1])];
+
+    accuracy = cross_val_score(LogisticRegression(fit_intercept=true), X, yy; cv=5);
+
+    println("accuracy: ", mean(accuracy));
+
+    return dgrs4network, C4network, eps4network, X, yy, accuracy;
 end
 #----------------------------------------------------------------
 

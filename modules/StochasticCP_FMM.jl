@@ -500,8 +500,8 @@ module StochasticCP_FMM
                 #--------------------------------------------------
                 # ball dropping
                 #--------------------------------------------------
-                grp_1_ids = sample(grp_1, Weights(grp_1_prob), 2*nei, replace=true); # sample nei nodes from grp_1 with grp_1_prob
-                grp_2_ids = sample(grp_2, Weights(grp_2_prob), 2*nei, replace=true); # sample nei nodes from grp_2 with grp_2_prob
+                grp_1_ids = StatsBase.sample(grp_1, Weights(grp_1_prob), 2*nei, replace=true); # sample nei nodes from grp_1 with grp_1_prob
+                grp_2_ids = StatsBase.sample(grp_2, Weights(grp_2_prob), 2*nei, replace=true); # sample nei nodes from grp_2 with grp_2_prob
 
                 for i in 1:2*nei
                     oid_1 = roid[srid[grp_1_ids[i]]];
