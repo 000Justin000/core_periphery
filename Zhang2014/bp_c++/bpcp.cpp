@@ -14,10 +14,9 @@
 
 using namespace std;
 
-//Constants for the graph.
-const string ntkName = "celegans";
-const int N = 277; //number of nodes
-const int M = 1918; //number edges
+const string ntkName = "openflight7184";
+const int N = 7184; //number of nodes
+const int M = 18616; //number edges
 const int K = 2; //number of groups
 const int max_ite = 50; //number of maximum iteration
 

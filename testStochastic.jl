@@ -11,6 +11,9 @@ using StochasticCP;
 using StochasticCP_SGD;
 using StochasticCP_FMM;
 using NLsolve;
+using LightGraphs;
+using TikzGraphs;
+using TikzPictures;
 using DecisionTree;
 using ScikitLearn;
 using ScikitLearn.CrossValidation: cross_val_score;
@@ -699,30 +702,41 @@ function analyze_openflight(A,C)
     C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
 
     labels = convert(Array{Float64,1}, empt_vec);
-    features1  = reshape(dgrs_vec, :, 1);
-    features2  = reshape(C_vec, :, 1);
-    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    features01 = reshape(dgrs_vec, :, 1);
+    features10 = reshape(C_vec, :, 1);
+    features11 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
 
     #--------------------------------------------------
-    n_subfeatures=0; max_depth=-1; min_samples_leaf=1; min_samples_split=2; min_purity_increase=0.0;
+    # manually test the correlation coefficient
     #--------------------------------------------------
-    model1  = build_tree(labels, features1,  0, 0, 5); model1  = prune_tree(model1,  0.9);
-    model2  = build_tree(labels, features2,  0, 0, 5); model2  = prune_tree(model2,  0.9);
-    model12 = build_tree(labels, features12, 0, 0, 5); model12 = prune_tree(model12, 0.9);
+    r  = Vector{Float64}();
     #--------------------------------------------------
-    print_tree(model12);
+    ratio = 0.8;
+    #--------------------------------------------------
+    permlist = randperm(length(labels));
+    tranlist = permlist[1:Int64(floor(length(labels) * ratio))];
+    testlist = permlist[Int64(floor(length(labels) * ratio))+1:end];
+    #--------------------------------------------------
+    model01 = build_tree(labels[tranlist], features01[tranlist,:], 0, 0, 3); model01 = prune_tree(model01, 0.9);
+    model10 = build_tree(labels[tranlist], features10[tranlist,:], 0, 0, 3); model10 = prune_tree(model10, 0.9);
+    model11 = build_tree(labels[tranlist], features11[tranlist,:], 0, 0, 3); model11 = prune_tree(model11, 0.9);
+    #--------------------------------------------------
+    labels_test = apply_tree(model10, features10[testlist,:]);
+    #--------------------------------------------------
+    push!(r, DecisionTree.R2(labels[testlist], labels_test));
     #--------------------------------------------------
 
     #--------------------------------------------------
     # use decision tree to predict empt
     #--------------------------------------------------
-    r1  = Vector{Float64}();
-    r2  = Vector{Float64}();
-    r12 = Vector{Float64}();
+    r01 = Vector{Float64}();
+    r10 = Vector{Float64}();
+    r11 = Vector{Float64}();
+    #--------------------------------------------------
     for itr in 1:10
-        r1  = vcat(r1,  nfoldCV_tree(labels, features1,  0.9, 3));
-        r2  = vcat(r2,  nfoldCV_tree(labels, features2,  0.9, 3));
-        r12 = vcat(r12, nfoldCV_tree(labels, features12, 0.9, 3));
+        r01 = vcat(r01, nfoldCV_tree(labels, features01, 0.9, 5));
+        r10 = vcat(r10, nfoldCV_tree(labels, features10, 0.9, 5));
+        r11 = vcat(r11, nfoldCV_tree(labels, features11, 0.9, 5));
     end
     #--------------------------------------------------
 
@@ -730,22 +744,74 @@ function analyze_openflight(A,C)
 #   #--------------------------------------------------
 #   # use random forest to predict empt
 #   #--------------------------------------------------
-#   r1  = Vector{Float64}();
-#   r2  = Vector{Float64}();
-#   r12 = Vector{Float64}();
+#   r01  = Vector{Float64}();
+#   r10  = Vector{Float64}();
+#   r11 = Vector{Float64}();
 #   for itr in 1:10
-#       r1  = vcat(r1,  nfoldCV_forest(labels, features1,  1, 10, 3, 5, 0.7));
-#       r2  = vcat(r2,  nfoldCV_forest(labels, features2,  1, 10, 3, 5, 0.7));
-#       r12 = vcat(r12, nfoldCV_forest(labels, features12, 2, 10, 3, 5, 0.7));
+#       r01 = vcat(r01, nfoldCV_forest(labels, features01, 1, 10, 3, 5, 0.7));
+#       r10 = vcat(r10, nfoldCV_forest(labels, features10, 1, 10, 3, 5, 0.7));
+#       r11 = vcat(r11, nfoldCV_forest(labels, features11, 2, 10, 3, 5, 0.7));
 #   end
 #   #--------------------------------------------------
 
-    println("\n\n\n(r1, r2, r12) = (", mean(r1), ", ", mean(r2), ", ", mean(r12), ")");
+    println("\n\n(R2_10) = (", mean(r), ")");
+    println("\n\n(R2_01, R2_10, R2_11) = (", mean(r01), ", ", mean(r10), ", ", mean(r11), ")");
 
-    return code_vec, labels, features1, features2, r1, r2, r12, model12;
+    return code_vec, labels, features01, features10, model10;
 end
 #----------------------------------------------------------------
 
+#----------------------------------------------------------------
+function draw_decision_tree(tree, size_tree, max_level)
+    #--------------------------------------------------
+    g = DiGraph(size_tree);
+    #--------------------------------------------------
+    node_labels = Vector{String}();
+    edge_labels = Dict{Tuple{Int64,Int64},String}();
+    edge_styles = Dict{Tuple{Int64,Int64},String}();
+    #--------------------------------------------------
+
+    #--------------------------------------------------
+    tree_nodes = Vector{Any}();
+    #--------------------------------------------------
+    push!(tree_nodes, tree);
+    #--------------------------------------------------
+
+    #--------------------------------------------------
+    nid = 0;
+    #--------------------------------------------------
+    while (length(tree_nodes) != 0)
+        #----------------------------------------------
+        tree_node = splice!(tree_nodes,1); nid += 1;
+        #----------------------------------------------
+        if (typeof(tree_node) == DecisionTree.Node)
+            #------------------------------------------
+            node_label = latexstring("\\theta_{w} > " * string(round(tree_node.featval, 1)));
+            #------------------------------------------
+            push!(tree_nodes, tree_node.left);
+            push!(tree_nodes, tree_node.right);
+            #------------------------------------------
+            add_edge!(g, nid, nid*2);
+            add_edge!(g, nid, nid*2+1);
+            #------------------------------------------
+            edge_styles[(nid,nid*2)]   = "red";
+            edge_styles[(nid,nid*2+1)] = "black!35!green";
+            #------------------------------------------
+        elseif (typeof(tree_node) == DecisionTree.Leaf)
+            #------------------------------------------
+            node_label = latexstring(string(@sprintf("%.2f", round(mean(tree_node.values)/1.0e6,2))) * "\\mathrm{M}");
+            #------------------------------------------
+        end
+        #----------------------------------------------
+        push!(node_labels, node_label);
+        #----------------------------------------------
+    end
+    #--------------------------------------------------
+
+    h = TikzGraphs.plot(g, node_labels, edge_labels=edge_labels, edge_styles=edge_styles);
+    TikzPictures.save(SVG("results/decision_tree"), h);
+end
+#----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
@@ -844,7 +910,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -912,6 +978,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
 
     if (epsilon > 0)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
@@ -963,8 +1030,8 @@ function test_mushroom(fname, epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=
 
     #--------------------------------
     if (epsilon > 0)
-        # D = Euclidean_matrix(coordinates);
-        D = nothing;
+        D = Euclidean_matrix(coordinates);
+        # D = nothing;
         # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
         C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
@@ -1058,7 +1125,6 @@ function analyze_mushroom()
 end
 #----------------------------------------------------------------
 
-
 #----------------------------------------------------------------
 function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
@@ -1119,7 +1185,6 @@ function plot_celegans(A, C, coords, option="degree", filename="output")
     return h;
 end
 #----------------------------------------------------------------
-
 
 #----------------------------------------------------------------
 function intro_celegans(A, C, coords, option="community", filename="output")
