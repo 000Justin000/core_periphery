@@ -14,9 +14,9 @@
 
 using namespace std;
 
-const string ntkName = "openflight7184";
-const int N = 7184; //number of nodes
-const int M = 18616; //number edges
+const string ntkName = "brightkite51406";
+const int N = 51406; //number of nodes
+const int M = 197167; //number edges
 const int K = 2; //number of groups
 const int max_ite = 50; //number of maximum iteration
 
@@ -237,7 +237,7 @@ void update_Omega()
                 }
             }
             //update the mixing matrix.
-            Omega[r][s] = SIGMA/(N*N*Gamma[r]*Gamma[s]);
+            Omega[r][s] = SIGMA/(double(N)*double(N)*Gamma[r]*Gamma[s]);
         }
     } 
 
@@ -264,15 +264,19 @@ void initilize_params()
 	//point as well as initialization method for better results. Here the 
 	//method is the 'apriori' method where we have a rough idea of what the parameters
 	//should be.
-	Gamma[0] = 0.5;
-	Gamma[1] = 0.5;
-	Omega[0][0] = 0.1;
-	Omega[0][1] = 0.03;
-	Omega[1][0] = 0.03;
-	Omega[1][1] = 0.01;
+	srand(time(NULL)); //random seed 
+	Gamma[0] = ((long double) rand() / (RAND_MAX));
+	Gamma[1] = 1.0 - Gamma[0];
+    //Omega[0][0] = 0.1;
+    //Omega[0][1] = 0.03;
+    //Omega[1][0] = 0.03;
+    //Omega[1][1] = 0.01;
+    Omega[0][0] = double(M) / (double(N)*double(N)) * 2;
+    Omega[0][1] = double(M) / (double(N)*double(N));
+    Omega[1][0] = double(M) / (double(N)*double(N));
+    Omega[1][1] = double(M) / (double(N)*double(N)) / 2;
 
 	//one could randomly generate a,b repeatedly for each node/edge. one value usually work just as well.
-	srand(time(NULL)); //random seed 
 	long double a;		
 	long double b;
 	a = ((long double) rand() / (RAND_MAX));

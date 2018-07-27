@@ -177,11 +177,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     if (option == "degree")
         println("option: degree")
         rk = sortperm(sortperm(d))
-        ms = (rk/n).^20 * 6 + 1.5;
+        ms = (rk/n).^20 * 3.6 + 1.0;
     elseif (option == "core_score")
         println("option: core_score")
         rk = sortperm(sortperm(C))
-        ms = (rk/n).^20 * 6 + 1.5;
+        ms = (rk/n).^20 * 3.6 + 1.0;
     else
         error("option not supported.");
     end
@@ -195,10 +195,10 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                 for j in i+1:n
                     #------------------------------------------------
                     if (A[i,j] != 0)
-                        plot!(h, [coords[i][1], coords[j][1]],
+                        Plots.plot!(h, [coords[i][1], coords[j][1]],
                                  [coords[i][2], coords[j][2]],
                                  legend=false,
-                                 color="black",
+                                 color="gray",
                                  linewidth=0.10,
                                  alpha=1.00);
                     end
@@ -213,31 +213,31 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                     #------------------------------------------------
                     if (A[i,j] != 0)
                         if (abs(coords[i][1] - coords[j][1]) <= 180)
-                            plot!(h, [coords[i][1], coords[j][1]],
+                            Plots.plot!(h, [coords[i][1], coords[j][1]],
                                      [coords[i][2], coords[j][2]],
                                      legend=false,
-                                     color="black",
+                                     color="gray",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=0.10);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
 
                             lat_c  = ((coords[min_id][2] - coords[max_id][2]) / ((coords[min_id][1] + 360) - coords[max_id][1])) * (180 - coords[max_id][1]) + coords[max_id][2]
 
-                            plot!(h, [-180.0, coords[min_id][1]],
+                            Plots.plot!(h, [-180.0, coords[min_id][1]],
                                      [lat_c,  coords[min_id][2]],
                                      legend=false,
-                                     color="black",
+                                     color="gray",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=0.10);
 
-                            plot!(h, [coords[max_id][1], 180.0],
+                            Plots.plot!(h, [coords[max_id][1], 180.0],
                                      [coords[max_id][2], lat_c],
                                      legend=false,
-                                     color="black",
+                                     color="gray",
                                      linewidth=0.10,
-                                     alpha=0.15);
+                                     alpha=0.10);
                         end
                     end
                     #------------------------------------------------
@@ -250,7 +250,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], alpha=1.00, label="");
+    Plots.scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], alpha=1.00, label="", markerstrokewidth=0.5);
     #----------------------------------------------------------------
 end
 #----------------------------------------------------------------
@@ -289,7 +289,7 @@ end
 
 #----------------------------------------------------------------
 function plot_underground(A, C, coords, option="degree", filename="output")
-    h = plot(size=(450,350), title="London Underground",
+    h = Plots.plot(size=(570,450), title="London Underground",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
                              framestyle=:box);
@@ -298,7 +298,7 @@ function plot_underground(A, C, coords, option="degree", filename="output")
                         plot_links=true,
                         distance="Haversine")
 
-    savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".pdf");
     return h;
 end
 #----------------------------------------------------------------
@@ -362,7 +362,7 @@ function hist_openflight_probE(A, B, D)
     Bhist = StatsBase.fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
     Dhist = StatsBase.fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 
-    h = plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
+    h = Plots.plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
                                                  ylabel=L"\rm{edge\ probability}",
                                                  xlim=(3.5e+5, 2.5e+7),
                                                  ylim=(3.0e-6, 2.5e-2),
@@ -378,13 +378,13 @@ function hist_openflight_probE(A, B, D)
     AfitL = 10.^(AprobL[2] * log10.(xrange) + AprobL[1]);
     BfitL = 10.^(BprobL[2] * log10.(xrange) + BprobL[1]);
 
-    plot!(h, xrange, AfitL, label="", color="red",  linestyle=:dot, linewidth=2.0);
-    plot!(h, xrange, BfitL, label="", color="blue", linestyle=:dot, linewidth=2.0);
+    Plots.plot!(h, xrange, AfitL, label="", color="red",  linestyle=:dot, linewidth=2.0);
+    Plots.plot!(h, xrange, BfitL, label="", color="blue", linestyle=:dot, linewidth=2.0);
 
-    scatter!(h, 0.5e6:1.0e6:1.35e7, (Ahist.weights./Dhist.weights)[1:14], label="original",  color="red",  ms=7);
-    scatter!(h, 0.5e6:1.0e6:1.35e7, (Bhist.weights./Dhist.weights)[1:14], label="generated", color="blue", ms=7);
+    Plots.scatter!(h, 0.5e6:1.0e6:1.35e7, (Ahist.weights./Dhist.weights)[1:14], label="original",  color="red",  ms=7);
+    Plots.scatter!(h, 0.5e6:1.0e6:1.35e7, (Bhist.weights./Dhist.weights)[1:14], label="generated", color="blue", ms=7);
 
-    savefig(h, "results/openflight_probE.pdf");
+    Plots.savefig(h, "results/openflight_probE.pdf");
 
     return AS, BS, DS, h
 end
@@ -400,7 +400,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     degrees_fmm = vec(sum(mean(BB_fmm),1));
 
     #------------------------------------------------------------
-    h1 = plot(size=(270,260), title="",
+    h1 = Plots.plot(size=(270,260), title="",
                               xlabel="vertex degrees (original)",
                               ylabel="vertex degrees (naive)",
                               xlim=(-2, 80),
@@ -408,10 +408,10 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
                               grid="off",
                               framestyle=:box,
                               legend=:topleft);
-    plot!(h1, -2:80, -2:80, color="red", label="ideal");
-    scatter!(h1, degrees_ori, degrees_nev, color="blue", label="naive", markerstrokewidth=0.3);
+    Plots.plot!(h1, -2:80, -2:80, color="red", label="ideal");
+    Plots.scatter!(h1, degrees_ori, degrees_nev, color="blue", label="naive", markerstrokewidth=0.3);
     #------------------------------------------------------------
-    h2 = plot(size=(270,260), title="",
+    h2 = Plots.plot(size=(270,260), title="",
                               xlabel="vertex degrees (original)",
                               ylabel="vertex degrees (FMM)",
                               xlim=(-2, 80),
@@ -419,8 +419,8 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
                               grid="off",
                               framestyle=:box,
                               legend=:topleft);
-    plot!(h2, -2:80, -2:80, color="red", label="ideal");
-    scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM", markerstrokewidth=0.3);
+    Plots.plot!(h2, -2:80, -2:80, color="red", label="ideal");
+    Plots.scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM", markerstrokewidth=0.3);
     #------------------------------------------------------------
 
     #------------------------------------------------------------
@@ -466,7 +466,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     end
 
     #------------------------------------------------------------
-    h3 = plot(size=(570,300), title="",
+    h3 = Plots.plot(size=(570,300), title="",
                               xlabel="distance threshold (mm)",
                               ylabel="number of edges",
                               xlim=(0.00,1.40),
@@ -476,15 +476,15 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
                               framestyle=:box,
                               legend=:topleft);
     #------------------------------------------------------------
-    plot!(h3, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
-    plot!(h3, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
-    plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
+    Plots.plot!(h3, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
+    Plots.plot!(h3, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
+    Plots.plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
 
 #     Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 #     Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 #     Dhist = fit(Histogram, DS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 #
-#     h = plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
+#     h = Plots.plot(size=(800,550), title="Openflight", xlabel=L"\rm{distance\ (m)}",
 #                                                  ylabel=L"\rm{edge\ probability}",
 #                                                  xlim=(3.5e+5, 2.5e+7),
 #                                                  ylim=(3.0e-6, 2.5e-2),
@@ -500,17 +500,17 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
 #     AfitL = 10.^(AprobL[2] * log10.(xrange) + AprobL[1]);
 #     BfitL = 10.^(BprobL[2] * log10.(xrange) + BprobL[1]);
 #
-#     plot!(h, xrange, AfitL, label="", color="red",  linestyle=:dot, linewidth=2.0);
-#     plot!(h, xrange, BfitL, label="", color="blue", linestyle=:dot, linewidth=2.0);
+#     Plots.plot!(h, xrange, AfitL, label="", color="red",  linestyle=:dot, linewidth=2.0);
+#     Plots.plot!(h, xrange, BfitL, label="", color="blue", linestyle=:dot, linewidth=2.0);
 #
-#     scatter!(h, 0.5e6:1.0e6:1.35e7, (Ahist.weights./Dhist.weights)[1:14], label="original",  color="red",  ms=7);
-#     scatter!(h, 0.5e6:1.0e6:1.35e7, (Bhist.weights./Dhist.weights)[1:14], label="generated", color="blue", ms=7);
+#     Plots.scatter!(h, 0.5e6:1.0e6:1.35e7, (Ahist.weights./Dhist.weights)[1:14], label="original",  color="red",  ms=7);
+#     Plots.scatter!(h, 0.5e6:1.0e6:1.35e7, (Bhist.weights./Dhist.weights)[1:14], label="generated", color="blue", ms=7);
 #
-#     savefig(h, "results/openflight_probE.pdf");
+#     Plots.savefig(h, "results/openflight_probE.pdf");
 
-    savefig(h1, "results/celegans_degrees_nev.svg");
-    savefig(h2, "results/celegans_degrees_fmm.svg");
-    savefig(h3, "results/celegans_hist_distance.svg");
+    Plots.savefig(h1, "results/celegans_degrees_nev.svg");
+    Plots.savefig(h2, "results/celegans_degrees_fmm.svg");
+    Plots.savefig(h3, "results/celegans_hist_distance.svg");
 
     return AS, BS_nev, BS_fmm, DS, h1, h2, h3
 end
@@ -572,7 +572,7 @@ end
 
 #----------------------------------------------------------------
 function hist_distance_rank(arr, b=0:50:6000)
-    h = plot(rank_array,
+    h = Plots.plot(rank_array,
              bins=b,
              legend=:topright,
              seriestype=:histogram,
@@ -581,9 +581,9 @@ function hist_distance_rank(arr, b=0:50:6000)
              xlabel=L"$\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$",
              ylabel="counts")
 
-    h = plot!(b[2:end], 26000 * b[2] ./ b[2:end], label=L"$1/\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$", size=(600,400));
+    h = Plots.plot!(b[2:end], 26000 * b[2] ./ b[2:end], label=L"$1/\min[\rm{rank}_{u}(v), \rm{rank}_{v}(u)]$", size=(600,400));
 
-    savefig(h, "results/air_rank_distance_hist.pdf")
+    Plots.savefig(h, "results/air_rank_distance_hist.pdf")
 
     return h
 end
@@ -669,16 +669,17 @@ end
 
 #----------------------------------------------------------------
 function plot_openflight(A, C, coords, option="degree", filename="output")
-    h = plot(size=(800,450), title="Openflight",
+    h = Plots.plot(size=(570,350), title="Openflight",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
-                             framestyle=:box);
+                             framestyle=:box,
+                             grid="off");
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
                         distance="Haversine")
 
-    savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".pdf");
     return h;
 end
 #----------------------------------------------------------------
@@ -895,16 +896,17 @@ end
 
 #----------------------------------------------------------------
 function plot_brightkite(A, C, coords, option="degree", filename="output")
-    h = plot(size=(800,450), title="Brightkite",
+    h = Plots.plot(size=(570,350), title="Brightkite",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
-                             framestyle=:box);
+                             framestyle=:box,
+                             grid="off");
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=false,
                         distance="Haversine")
 
-    savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".pdf");
     return h;
 end
 #----------------------------------------------------------------
@@ -992,22 +994,23 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
-#
-# #----------------------------------------------------------------
-# function plot_livejournal(A, C, coords, option="degree", filename="output")
-#     h = plot(size=(800,450), title="Brightkite",
-#                              xlabel=L"\rm{Longitude}(^\circ)",
-#                              ylabel=L"\rm{Latitude}(^\circ)",
-#                              framestyle=:box);
-#
-#     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
-#                         plot_links=false,
-#                         distance="Haversine")
-#
-#     savefig(h, "results/" * filename * ".pdf");
-#     return h;
-# end
-# #----------------------------------------------------------------
+ 
+#----------------------------------------------------------------
+function plot_livejournal(A, C, coords, option="degree", filename="output")
+    h = Plots.plot(size=(570,350), title="Livejournal",
+                             xlabel=L"\rm{Longitude}(^\circ)",
+                             ylabel=L"\rm{Latitude}(^\circ)",
+                             framestyle=:box,
+                             grid="off");
+
+    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+                        plot_links=false,
+                        distance="Haversine")
+
+    Plots.savefig(h, "results/" * filename * ".pdf");
+    return h;
+end
+#----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function test_mushroom(fname, epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
@@ -1053,16 +1056,17 @@ end
 
 #----------------------------------------------------------------
 function plot_mushroom(A, C, coords, option="degree", filename="output")
-    h = plot(size=(450,350), title="Mushroom",
-                             xlabel=L"x",
-                             ylabel=L"y",
-                             framestyle=:box);
+    h = Plots.plot(size=(570,450), title="Mushroom",
+                                   xlabel=L"x",
+                                   ylabel=L"y",
+                                   framestyle=:box,
+                                   grid="off");
 
     plot_core_periphery(h, A, C, coords, option;
                         plot_links=true,
                         distance="Euclidean")
 
-    savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".pdf");
     return h;
 end
 #----------------------------------------------------------------
@@ -1172,7 +1176,7 @@ end
 
 #----------------------------------------------------------------
 function plot_celegans(A, C, coords, option="degree", filename="output")
-    h = plot(size=(450,350), title="Celegans",
+    h = Plots.plot(size=(450,350), title="Celegans",
                              xlabel=L"x",
                              ylabel=L"y",
                              framestyle=:box);
@@ -1181,14 +1185,14 @@ function plot_celegans(A, C, coords, option="degree", filename="output")
                         plot_links=true,
                         distance="Euclidean")
 
-    savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".pdf");
     return h;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function intro_celegans(A, C, coords, option="community", filename="output")
-    h = plot(size=(800,550), title="Celegans",
+    h = Plots.plot(size=(800,550), title="Celegans",
                              xlabel=L"x",
                              ylabel=L"y",
                              grid="off",
@@ -1232,7 +1236,7 @@ function intro_celegans(A, C, coords, option="community", filename="output")
             for j in i+1:n
                 #------------------------------------------------
                 if (A[i,j] != 0)
-                    plot!(h, [coords[i][1], coords[j][1]],
+                    Plots.plot!(h, [coords[i][1], coords[j][1]],
                              [coords[i][2], coords[j][2]],
                              legend=false,
                              color="grey",
@@ -1245,10 +1249,10 @@ function intro_celegans(A, C, coords, option="community", filename="output")
         #--------------------------------------------------------
     end
     #------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=sqrt.(d)*1.8, c=color, alpha=1.00);
+    Plots.scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=sqrt.(d)*1.8, c=color, alpha=1.00);
     #----------------------------------------------------------------
 
-    savefig(h, "results/" * filename * ".svg");
+    Plots.savefig(h, "results/" * filename * ".svg");
 
     if (option == "community")
         order = [i for j in 1:10 for i in shuffle(1:n) if com[i] == j];
@@ -1306,7 +1310,7 @@ end
 
 #----------------------------------------------------------------
 function intro_Karate(A, C, coords, option="community", filename="output")
-    h = plot(size=(800,550), title="Karate",
+    h = Plots.plot(size=(800,550), title="Karate",
                              xlabel=L"x",
                              ylabel=L"y",
                              grid="off",
@@ -1333,7 +1337,7 @@ function intro_Karate(A, C, coords, option="community", filename="output")
             for j in i+1:n
                 #------------------------------------------------
                 if (A[i,j] != 0)
-                    plot!(h, [coords[i][1], coords[j][1]],
+                    Plots.plot!(h, [coords[i][1], coords[j][1]],
                              [coords[i][2], coords[j][2]],
                              legend=false,
                              color="grey",
@@ -1346,12 +1350,12 @@ function intro_Karate(A, C, coords, option="community", filename="output")
         #--------------------------------------------------------
     end
     #------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=ones(n)*20, c=color, alpha=1.00);
+    Plots.scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=ones(n)*20, c=color, alpha=1.00);
     #----------------------------------------------------------------
-    annotate!([(coords[i][1], coords[i][2], string(i), 15) for i in 1:n]);
+    Plots.annotate!([(coords[i][1], coords[i][2], string(i), 15) for i in 1:n]);
     #----------------------------------------------------------------
 
-    savefig(h, "results/" * filename * ".svg");
+    Plots.savefig(h, "results/" * filename * ".svg");
 
     if (option == "community")
         order = vcat(vec(com[2]), vec(com[1]));
@@ -1418,7 +1422,7 @@ end
 
 #----------------------------------------------------------------
 function plot_facebook(A, C, coords, option="degree", filename="output")
-    h = plot(size=(600,600), title="Facebook",
+    h = Plots.plot(size=(600,600), title="Facebook",
                              xlabel=L"status",
                              ylabel=L"year");
 
@@ -1427,14 +1431,14 @@ function plot_facebook(A, C, coords, option="degree", filename="output")
                         plot_links=true,
                         distance="Euclidean")
 
-    savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".pdf");
     return h;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
 function plot_algo(sigma, num_vertices)
-    h = plot(size=(600,600), title="",
+    h = Plots.plot(size=(600,600), title="",
                              xlabel=L"x",
                              ylabel=L"y",
                              xlim=(0.0, 1.0),
@@ -1474,7 +1478,7 @@ function plot_algo(sigma, num_vertices)
                         (colors[i] == ctypes[3] && colors[j] == ctypes[4]) ||
                         (colors[i] == ctypes[5] && colors[j] == ctypes[6]) ||
                         (colors[i] == ctypes[7] && colors[j] == ctypes[8]))
-                        plot!(h, [coords[i][1], coords[j][1]],
+                        Plots.plot!(h, [coords[i][1], coords[j][1]],
                                  [coords[i][2], coords[j][2]],
                                  legend=false,
                                  color="black",
@@ -1482,7 +1486,7 @@ function plot_algo(sigma, num_vertices)
                                  linestyle=:dash,
                                  alpha=0.5);
                     else
-                        plot!(h, [coords[i][1], coords[j][1]],
+                        Plots.plot!(h, [coords[i][1], coords[j][1]],
                                  [coords[i][2], coords[j][2]],
                                  legend=false,
                                  color="black",
@@ -1497,10 +1501,10 @@ function plot_algo(sigma, num_vertices)
         #--------------------------------------------------------
     end
     #------------------------------------------------------------
-    scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=C*5+23, c=colors, alpha=1.00);
+    Plots.scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=C*5+23, c=colors, alpha=1.00);
     #----------------------------------------------------------------
 
-    savefig(h, "results/algo_network.svg");
+    Plots.savefig(h, "results/algo_network.svg");
 
     return h;
 end
@@ -1540,7 +1544,7 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
 
     order = sortperm(vec(sum(A,1)), rev=false);
 
-    h = plot(size=(270,260), title="",
+    h = Plots.plot(size=(270,260), title="",
                              xlabel="vertex indices",
                              ylabel="expected degrees",
                              xlim=(1,277),
@@ -1549,11 +1553,11 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
                              framestyle=:box,
                              legend=:topleft);
 
-    plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=3.50, color="grey",   label="original degrees");
-    plot!(h, epd_nev[order],                linestyle=:solid, linewidth=2.00, color="blue",   label="naive");
-    plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=1.00, color="orange", label="FMM");
-    plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="FMM error");
-    savefig(h, "results/expected_degrees.svg");
+    Plots.plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=3.50, color="grey",   label="original degrees");
+    Plots.plot!(h, epd_nev[order],                linestyle=:solid, linewidth=2.00, color="blue",   label="naive");
+    Plots.plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=1.00, color="orange", label="FMM");
+    Plots.plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="FMM error");
+    Plots.savefig(h, "results/expected_degrees.svg");
 
     return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm, epd_nev, epd_fmm;
 end
@@ -1561,7 +1565,7 @@ end
 
 #----------------------------------------------------------------
 function plot_cs_correlation(C_nev, C_fmm)
-    h = plot(size=(270,260), title="",
+    h = Plots.plot(size=(270,260), title="",
                              xlabel="core scores (naive)",
                              ylabel="core scores (FMM)",
                              xlim=(-5.35,0.35),
@@ -1570,10 +1574,10 @@ function plot_cs_correlation(C_nev, C_fmm)
                              framestyle=:box,
                              legend=:topleft);
 
-    plot!(h, -5.35:0.05:0.35, -5.35:0.05:0.35, color="red", label="ideal");
-    scatter!(h, C_nev, C_fmm, label="experiment", color="blue", markerstrokewidth=0.3);
+    Plots.plot!(h, -5.35:0.05:0.35, -5.35:0.05:0.35, color="red", label="ideal");
+    Plots.scatter!(h, C_nev, C_fmm, label="experiment", color="blue", markerstrokewidth=0.3);
 
-    savefig(h, "results/cs_correlation.svg");
+    Plots.savefig(h, "results/cs_correlation.svg");
 
     return h;
 end
@@ -1646,7 +1650,7 @@ function plot_timings()
     fmm_deriv = [0.000862, 0.014218,  0.224220,    2.639909,     26.322895];
     #------------------------------------------------------------
 
-    h = plot(size=(570,450), title="Timings", xlabel="number of vertices",
+    h = Plots.plot(size=(570,450), title="Timings", xlabel="number of vertices",
                                               ylabel="time per function call (sec)",
                                               xlim=(10^(+1.7), 10^(+6.3)),
                                               ylim=(10^(-3.7), 10^(+2.7)),
@@ -1659,18 +1663,18 @@ function plot_timings()
     exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
     exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
-    scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
-    plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
-    scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
-    plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
-    scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
-    plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
+    Plots.scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
+    Plots.plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
+    Plots.scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
+    Plots.plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
+    Plots.scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
+    Plots.plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
 
-    scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
-    scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
-    scatter!(h, size, fmm_gener, label="", color="green", ms=8);
+    Plots.scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
+    Plots.scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
+    Plots.scatter!(h, size, fmm_gener, label="", color="green", ms=8);
 
-    savefig(h, "results/fmm_timings.pdf");
+    Plots.savefig(h, "results/fmm_timings.pdf");
 
     return h
 end
