@@ -6,6 +6,7 @@ using LaTeXStrings;
 using MatrixNetworks;
 using Dierckx;
 using Distances;
+using Distributions;
 using NearestNeighbors;
 using StochasticCP;
 using StochasticCP_SGD;
@@ -167,21 +168,23 @@ function plot_core_periphery(h, A, C, coords, option="degree";
     d = vec(sum(A,1));
 
     if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.03*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.03*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
+        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
     else
         error("option not supported.");
     end
 
     if (option == "degree")
         println("option: degree")
+        order = sortperm(d);
         rk = sortperm(sortperm(d))
-        ms = (rk/n).^20 * 3.6 + 1.0;
+        ms = (rk/n).^20 * 6.0 + 1.5;
     elseif (option == "core_score")
         println("option: core_score")
+        order = sortperm(C);
         rk = sortperm(sortperm(C))
-        ms = (rk/n).^20 * 3.6 + 1.0;
+        ms = (rk/n).^20 * 6.0 + 1.5;
     else
         error("option not supported.");
     end
@@ -218,7 +221,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=0.10);
+                                     alpha=1.00);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -230,14 +233,14 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=0.10);
+                                     alpha=1.00);
 
                             Plots.plot!(h, [coords[max_id][1], 180.0],
                                      [coords[max_id][2], lat_c],
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=0.10);
+                                     alpha=1.00);
                         end
                     end
                     #------------------------------------------------
@@ -250,7 +253,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    Plots.scatter!(h, [coord[1] for coord in coords[rk]], [coord[2] for coord in coords[rk]], ms=ms[rk], c=color[rk], alpha=1.00, label="", markerstrokewidth=0.5);
+    Plots.scatter!(h, [coord[1] for coord in coords[order]], [coord[2] for coord in coords[order]], ms=ms[order], c=color[order], alpha=1.00, label="", markerstrokewidth=0.5);
     #----------------------------------------------------------------
 end
 #----------------------------------------------------------------
@@ -292,13 +295,14 @@ function plot_underground(A, C, coords, option="degree", filename="output")
     h = Plots.plot(size=(570,450), title="London Underground",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
-                             framestyle=:box);
+                             framestyle=:box,
+                             grid="off");
 
     plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
                         distance="Haversine")
 
-    Plots.savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".svg");
     return h;
 end
 #----------------------------------------------------------------
@@ -815,7 +819,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -869,7 +873,7 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     coords = zeros(2,num_people);
     for i in 1:num_people
         coord = id2lc[no2id[i]];
-        coord = coord + rand(2);
+        coord = coord + rand(Normal(0.0,1.5),2);
         coord[1] = min(90, max(-90, coord[1]));
         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
         push!(coordinates, coord);
@@ -881,6 +885,7 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
 
     if (epsilon > 0)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
@@ -968,7 +973,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     coords = zeros(2,num_users);
     for i in 1:num_users
         coord = id2lc[no2id[i]];
-        coord = coord + rand(2);
+        coord = coord + rand(Normal(0.0,1.5),2);
         coord[1] = min(90, max(-90, coord[1]));
         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
         push!(coordinates, coord);
@@ -1066,7 +1071,7 @@ function plot_mushroom(A, C, coords, option="degree", filename="output")
                         plot_links=true,
                         distance="Euclidean")
 
-    Plots.savefig(h, "results/" * filename * ".pdf");
+    Plots.savefig(h, "results/" * filename * ".svg");
     return h;
 end
 #----------------------------------------------------------------
@@ -1106,9 +1111,9 @@ function analyze_mushroom()
         #-----------------------------------------
         push!(xvec, length(C4network[fname]));
         #-----------------------------------------
-        push!(xvec, mean(dgrs4network[fname]));
-        push!(xvec, maximum(dgrs4network[fname]));
-        push!(xvec, std(dgrs4network[fname]));
+#       push!(xvec, mean(dgrs4network[fname]));
+#       push!(xvec, maximum(dgrs4network[fname]));
+#       push!(xvec, std(dgrs4network[fname]));
         #-----------------------------------------
         push!(xvec, maximum(C4network[fname]));
         push!(xvec, mean(C4network[fname]));

@@ -214,6 +214,19 @@ void update_Gamma()
     {
         Gamma[r] = Gamma[r]/NORM;
     }    
+
+    if (Gamma[0] > 0.99)
+    {
+        Gamma[0] = 0.99;
+        Gamma[1] = 0.01;
+    }
+
+    if (Gamma[1] > 0.99)
+    {
+        Gamma[0] = 0.01;
+        Gamma[1] = 0.99;
+    }
+
 	return;
 }
 
