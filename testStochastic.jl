@@ -989,7 +989,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
 
-    dat = MAT.matread("results/livejournal_distanceopt.mat");
+    dat = MAT.matread("results/livejournal0_distanceopt.mat");
 
     if (epsilon > 0)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt, C0=dat["C"]);
