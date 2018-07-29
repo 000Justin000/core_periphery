@@ -393,13 +393,22 @@ module StochasticCP_FMM
                        CoM2,
                        metric = Euclidean(),
                        epsilon = 1;
-                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0, "opt_epsilon"=>true))
+                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0, "opt_epsilon"=>true),
+                       C0 = nothing)
         @assert issymmetric(A);
+
+        #-----------------------------------------------------------------------------
         A = spones(A);
         n = size(A,1);
         d = vec(sum(A,2));
         order = sortperm(d, rev=true);
-        C = d / maximum(d) * 1.0e-6;
+        #-----------------------------------------------------------------------------
+        if (C0 == nothing)
+            C = d / maximum(d) * 1.0e-6;
+        else
+            C = C0;
+        end
+        #-----------------------------------------------------------------------------
 
         #-----------------------------------------------------------------------------
         # \sum_{ij in E} -log_Dij

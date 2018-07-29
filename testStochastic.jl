@@ -836,13 +836,15 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     num_people = 0;
     #--------------------------------
     for i in num_checkins:-1:1
-        if (!(brightkite_dat[i,1] in keys(id2no)))
-            num_people += 1;
-            no2id[num_people] = brightkite_dat[i,1];
-            id2no[brightkite_dat[i,1]] = num_people;
-        end
+        if (!(isapprox(brightkite_dat[i,3],0.0) && isapprox(brightkite_dat[i,4],0.0)))
+            if (!(brightkite_dat[i,1] in keys(id2no)))
+                num_people += 1;
+                no2id[num_people] = brightkite_dat[i,1];
+                id2no[brightkite_dat[i,1]] = num_people;
+            end
 
-        id2lc[brightkite_dat[i,1]] = brightkite_dat[i,3:4];
+            id2lc[brightkite_dat[i,1]] = brightkite_dat[i,3:4];
+        end
     end
     #--------------------------------
 
@@ -873,7 +875,7 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     coords = zeros(2,num_people);
     for i in 1:num_people
         coord = id2lc[no2id[i]];
-        coord = coord + rand(Normal(0.0,1.5),2);
+        coord = coord + rand(Normal(0.0,0.3),2);
         coord[1] = min(90, max(-90, coord[1]));
         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
         push!(coordinates, coord);
@@ -973,7 +975,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     coords = zeros(2,num_users);
     for i in 1:num_users
         coord = id2lc[no2id[i]];
-        coord = coord + rand(Normal(0.0,1.5),2);
+        coord = coord + rand(Normal(0.0,0.5),2);
         coord[1] = min(90, max(-90, coord[1]));
         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
         push!(coordinates, coord);
@@ -987,10 +989,11 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
 
+    dat = MAT.matread("results/livejournal_distanceopt.mat");
+
     if (epsilon > 0)
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        # B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = nothing;
+        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt, C0=dat["C"]);
+        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
@@ -999,7 +1002,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     return A, B, C, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
- 
+
 #----------------------------------------------------------------
 function plot_livejournal(A, C, coords, option="degree", filename="output")
     h = Plots.plot(size=(570,350), title="Livejournal",
@@ -1061,7 +1064,7 @@ end
 
 #----------------------------------------------------------------
 function plot_mushroom(A, C, coords, option="degree", filename="output")
-    h = Plots.plot(size=(570,450), title="Mushroom",
+    h = Plots.plot(size=(570,450), title="Fungal Network (Pv_MIUN)",
                                    xlabel=L"x",
                                    ylabel=L"y",
                                    framestyle=:box,

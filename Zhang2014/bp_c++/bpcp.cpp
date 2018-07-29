@@ -14,9 +14,9 @@
 
 using namespace std;
 
-const string ntkName = "brightkite51406";
-const int N = 51406; //number of nodes
-const int M = 197167; //number edges
+const string ntkName = "brightkite50686";
+const int N = 50686; //number of nodes
+const int M = 194090; //number edges
 const int K = 2; //number of groups
 const int max_ite = 50; //number of maximum iteration
 
