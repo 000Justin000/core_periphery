@@ -128,7 +128,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function omega!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE)
+    function omega!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt)
         # println(" - da"); # debug
 
         n = length(C);
@@ -150,7 +150,7 @@ module StochasticCP_FMM
         #-----------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
-        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))];
+        core_id = sortperm(C, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
         #-------------------------------------------------------------------------
         # now compute the c->c and c->p
         #-------------------------------------------------------------------------
@@ -276,7 +276,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function epd_and_srd!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio)
+    function epd_and_srd!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, opt)
         n = length(C);
 
         #-------------------------------------------------------------------------
@@ -285,7 +285,7 @@ module StochasticCP_FMM
         epd = zeros(n);
         srd = 0.0;
         #-------------------------------------------------------------------------
-        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))];
+        core_id = sortperm(C, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -372,15 +372,15 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # gradient of objective function
     #-----------------------------------------------------------------------------
-    function negative_gradient_omega!(C, coords, CoM2, dist, epsilon, bt, ratio, d, sum_logD_inE, storage, opt_epsilon)
+    function negative_gradient_omega!(C, coords, CoM2, dist, epsilon, bt, d, sum_logD_inE, storage, opt)
         # print(maximum(C), "    ", minimum(C), "    ", mean(C), "    di"); # debug
 
-        epd, srd, fmm_tree = epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+        epd, srd, fmm_tree = epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, opt);
 
         G = d - epd;
 
         storage[1:end-1] = -G;
-        storage[end] = opt_epsilon ? -(srd - sum_logD_inE) : 0.0;
+        storage[end] = opt["opt_epsilon"] ? -(srd - sum_logD_inE) : 0.0;
     end
     #-----------------------------------------------------------------------------
 
@@ -415,35 +415,26 @@ module StochasticCP_FMM
         #-----------------------------------------------------------------------------
         I,J,V = findnz(A);
         #-----------------------------------------------------------------------------
-        sum_logD_inE = 0.0
+        sum_logD_inE = 0.0;
         #-----------------------------------------------------------------------------
         for (i,j) in zip(I,J)
             #---------------------------------------------------------------------
             if (i < j)
-                sum_logD_inE += log(evaluate(metric, coords[:,i], coords[:,j]))
+                sum_logD_inE += log(evaluate(metric, coords[:,i], coords[:,j]));
             end
             #---------------------------------------------------------------------
         end
         #-----------------------------------------------------------------------------
         # println("sum_logD_inE: ", sum_logD_inE);
 
-        dist = Dict{Int64,Array{Float64,1}}()
+        dist = Dict{Int64,Array{Float64,1}}();
         bt = BallTree(coords, metric, leafsize=1);
 
-        f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], A, sum_logD_inE);
-        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], d, sum_logD_inE, storage, opt["opt_epsilon"])
+        f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, A, sum_logD_inE, opt);
+        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, d, sum_logD_inE, storage, opt)
 
         #-----------------------------------------------------------------------------
         println("starting optimization:")
-        #-----------------------------------------------------------------------------
-        # lo = -ones(length(C)+1) * Inf; lo[end] = 0;
-        # hi =  ones(length(C)+1) * Inf;
-        #
-        # od = OnceDifferentiable(f!,g!,vcat(C,[epsilon]));
-        # optim = optimize(od, vcat(C,[epsilon]), lo, hi, Fminbox{LBFGS}(), show_trace = true,
-        #                                                                   show_every = 1,
-        #                                                                   allow_f_increases = true,
-        #                                                                   iterations = opt["max_num_step"]);
         #-----------------------------------------------------------------------------
         precond = speye(length(C)+1) * length(C); precond[end,end] *= length(C);
         optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
@@ -460,7 +451,7 @@ module StochasticCP_FMM
         epsilon = optim.minimizer[end];
 
         println(epsilon);
-        println(omega!(C, coords, CoM2, dist, epsilon, bt, opt["ratio"], A, sum_logD_inE));
+        println(omega!(C, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt));
 
         @assert epsilon > 0;
         return C, epsilon;

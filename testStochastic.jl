@@ -1619,11 +1619,11 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     #-----------------------------------------------------------------------------
 
     omega_nev = StochasticCP.omega(A, C, D, epsilon);
-    omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
+    omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio));
 
     epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
     srd_nev = StochasticCP.sum_rho_logD(C,D,epsilon);
-    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio));
 
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
@@ -1716,8 +1716,8 @@ function timeit(n, metric, CoM2, epsilon)
     end
 
     @time [B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0))];
-    @time [omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, B_fmm, 0.0)];
-    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0)];
+    @time [omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, B_fmm, 0.0, Dict("ratio" => ratio))];
+    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, Dict("ratio" => ratio))];
     println(countnz(B_fmm)/n);
 end
 #----------------------------------------------------------------
