@@ -1,7 +1,7 @@
 using StatsBase;
 using MAT;
 using Colors;
-using Plots; pyplot();
+using Plots;
 using LaTeXStrings;
 using MatrixNetworks;
 using Dierckx;
@@ -167,19 +167,12 @@ function plot_core_periphery(h, A, C, coords, option="degree";
 
     d = vec(sum(A,1));
 
-    if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
-    elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
-    else
-        error("option not supported.");
-    end
+    color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
 
     if (option == "degree")
         println("option: degree")
         order = sortperm(d);
-        rk = sortperm(sortperm(d))
-        ms = (rk/n).^20 * 6.0 + 1.5;
+        ms = (sqrt.(d) / sqrt(maximum(d))) * 3.6 + 1.0;
     elseif (option == "core_score")
         println("option: core_score")
         order = sortperm(C);
@@ -221,7 +214,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.10);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -233,14 +226,14 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.10);
 
                             Plots.plot!(h, [coords[max_id][1], 180.0],
                                      [coords[max_id][2], lat_c],
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.10);
                         end
                     end
                     #------------------------------------------------
@@ -253,7 +246,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    Plots.scatter!(h, [coord[1] for coord in coords[order]], [coord[2] for coord in coords[order]], ms=ms[order], c=color[order], alpha=1.00, label="", markerstrokewidth=0.5);
+    Plots.scatter!(h, [coord[1] for coord in coords[order]], [coord[2] for coord in coords[order]], ms=ms[order], c=color[order], alpha=1.00,
+                                                                                                                                  label="",
+                                                                                                                                  markerstrokealpha=0.1,
+                                                                                                                                  markerstrokewidth=0.0,
+                                                                                                                                  markerstrokecolor="black");
     #----------------------------------------------------------------
 end
 #----------------------------------------------------------------
@@ -315,13 +312,13 @@ function analyze_underground(A,C)
     dat = MAT.matread("data/london_underground/london_underground_clean_traffic.mat");
 
     # random forest prediction
-    dgrs_vec = degree;
+    base_vec = degree;
     C_vec = C;
 
     labels = convert(Array{Float64,1}, dat["Traffic"]);
-    features1  = reshape(dgrs_vec, :, 1);
+    features1  = reshape(base_vec, :, 1);
     features2  = reshape(C_vec, :, 1);
-    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    features12 = convert(Array{Float64,2}, reshape([base_vec; C_vec], :, 2));
     r1  = nfoldCV_forest(labels, features1,  1, 100, 3, 5, 0.7);
     r2  = nfoldCV_forest(labels, features2,  1, 100, 3, 5, 0.7);
     r12 = nfoldCV_forest(labels, features12, 2, 100, 3, 5, 0.7);
@@ -399,36 +396,35 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     @assert issymmetric(A);
     @assert issymmetric(D);
 
+    #------------------------------------------------------------
     degrees_ori = vec(sum(A,1));
     degrees_nev = vec(sum(mean(BB_nev),1));
     degrees_fmm = vec(sum(mean(BB_fmm),1));
+    #------------------------------------------------------------
+    n = size(A,1);
+    #------------------------------------------------------------
 
     #------------------------------------------------------------
-    h1 = Plots.plot(size=(270,260), title="",
-                              xlabel="vertex degrees (original)",
-                              ylabel="vertex degrees (naive)",
+    h1 = Plots.plot(size=(240,220), title="",
+                              xlabel="degrees (original)",
+                              ylabel="degrees (generated)",
                               xlim=(-2, 80),
                               ylim=(-2, 80),
                               grid="off",
                               framestyle=:box,
                               legend=:topleft);
     Plots.plot!(h1, -2:80, -2:80, color="red", label="ideal");
-    Plots.scatter!(h1, degrees_ori, degrees_nev, color="blue", label="naive", markerstrokewidth=0.3);
+    degrees_original  = vcat(degrees_ori, degrees_ori);
+    degrees_generated = vcat(degrees_nev, degrees_fmm);
+    color = [i <= n ? colorant"blue" : colorant"orange" for i in 1:2*n];
+    order = randperm(2*n);
     #------------------------------------------------------------
-    h2 = Plots.plot(size=(270,260), title="",
-                              xlabel="vertex degrees (original)",
-                              ylabel="vertex degrees (FMM)",
-                              xlim=(-2, 80),
-                              ylim=(-2, 80),
-                              grid="off",
-                              framestyle=:box,
-                              legend=:topleft);
-    Plots.plot!(h2, -2:80, -2:80, color="red", label="ideal");
-    Plots.scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM", markerstrokewidth=0.3);
+    Plots.scatter!(h1, [], [], color="blue",   label="naive", markerstrokewidth=0.1, markerstrokecolor="blue",   markerstrokealpha=1.0, markersize=3.0, markeralpha=0.6);
+    Plots.scatter!(h1, [], [], color="orange", label="FMM",   markerstrokewidth=0.1, markerstrokecolor="orange", markerstrokealpha=1.0, markersize=3.0, markeralpha=0.6);
+    Plots.scatter!(h1, degrees_original[order], degrees_generated[order], color=color[order], label="", markerstrokewidth=0.1, markerstrokecolor=color[order], markerstrokealpha=1.0, markersize=3.0, markeralpha=0.6);
     #------------------------------------------------------------
 
     #------------------------------------------------------------
-    n = size(A,1);
     AS     = Array{Float64,1}();
     BS_nev = Array{Float64,1}();
     BS_fmm = Array{Float64,1}();
@@ -461,7 +457,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     accumulated_nev = Array{Float64,1}();
     accumulated_fmm = Array{Float64,1}();
 
-    thresholds = 0.00:0.01:1.40;
+    thresholds = 0.00:0.01:1.35;
 
     for thres in thresholds
         push!(accumulated_ori, sum(AS     .< thres));
@@ -470,19 +466,19 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     end
 
     #------------------------------------------------------------
-    h3 = Plots.plot(size=(570,300), title="",
+    h2 = Plots.plot(size=(250,220), title="",
                               xlabel="distance threshold (mm)",
                               ylabel="number of edges",
-                              xlim=(0.00,1.40),
+                              xlim=(0.00,1.35),
                               ylim=(0, 2000),
-                              xticks=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4],
+                              xticks=[0.0, 0.3, 0.6, 0.9, 1.2],
                               grid="off",
                               framestyle=:box,
-                              legend=:topleft);
+                              legend=:bottomright);
     #------------------------------------------------------------
-    Plots.plot!(h3, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
-    Plots.plot!(h3, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
-    Plots.plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
+    Plots.plot!(h2, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
+    Plots.plot!(h2, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
+    Plots.plot!(h2, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
 
 #     Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 #     Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
@@ -512,11 +508,10 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
 #
 #     Plots.savefig(h, "results/openflight_probE.pdf");
 
-    Plots.savefig(h1, "results/celegans_degrees_nev.svg");
-    Plots.savefig(h2, "results/celegans_degrees_fmm.svg");
-    Plots.savefig(h3, "results/celegans_hist_distance.svg");
+    Plots.savefig(h1, "results/celegans_degrees.svg");
+    Plots.savefig(h2, "results/celegans_hist_distance.svg");
 
-    return AS, BS_nev, BS_fmm, DS, h1, h2, h3
+    return AS, BS_nev, BS_fmm, DS, h1, h2
 end
 #----------------------------------------------------------------
 
@@ -673,9 +668,21 @@ end
 
 #----------------------------------------------------------------
 function plot_openflight(A, C, coords, option="degree", filename="output")
-    h = Plots.plot(size=(570,350), title="Openflight",
-                             xlabel=L"\rm{Longitude}(^\circ)",
-                             ylabel=L"\rm{Latitude}(^\circ)",
+#   h = Plots.plot(size=(570,350), title="Openflight",
+#                            xlabel=L"\rm{Longitude}(^\circ)",
+#                            ylabel=L"\rm{Latitude}(^\circ)",
+#                            xticks=[],
+#                            yticks=[]
+#                            framestyle=:none,
+#                            grid="off");
+
+    h = Plots.plot(size=(600,300), title="",
+                             xlabel="",
+                             ylabel="",
+                             xticks=[],
+                             yticks=[],
+                             xlim = [-180, 180],
+                             ylim = [-70, 80],
                              framestyle=:box,
                              grid="off");
 
@@ -691,7 +698,15 @@ end
 
 #----------------------------------------------------------------
 function analyze_openflight(A,C)
+    #--------------------------------------------------
+    lg = Graph(A);
+    #--------------------------------------------------
     degree = vec(sum(A,1));
+    btcetr = LightGraphs.betweenness_centrality(lg);
+    clcetr = LightGraphs.closeness_centrality(lg);
+    evcetr = LightGraphs.eigenvector_centrality(lg);
+    pagerk = LightGraphs.pagerank(lg);
+    #--------------------------------------------------
 
     dat_world = readcsv("data/open_airlines/airports.dat");
     dat_US = readcsv("data/open_airlines/enplanements.csv");
@@ -703,13 +718,13 @@ function analyze_openflight(A,C)
     indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
     code_vec = [dat_US_code[id] for id in indices];
     empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
-    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
+    base_vec = [clcetr[code2id[dat_US_code[id]]] for id in indices];
     C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
 
     labels = convert(Array{Float64,1}, empt_vec);
-    features01 = reshape(dgrs_vec, :, 1);
+    features01 = reshape(base_vec, :, 1);
     features10 = reshape(C_vec, :, 1);
-    features11 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    features11 = convert(Array{Float64,2}, reshape([base_vec; C_vec], :, 2));
 
     #--------------------------------------------------
     # manually test the correlation coefficient
@@ -738,7 +753,7 @@ function analyze_openflight(A,C)
     r10 = Vector{Float64}();
     r11 = Vector{Float64}();
     #--------------------------------------------------
-    for itr in 1:10
+    for itr in 1:30
         r01 = vcat(r01, nfoldCV_tree(labels, features01, 0.9, 5));
         r10 = vcat(r10, nfoldCV_tree(labels, features10, 0.9, 5));
         r11 = vcat(r11, nfoldCV_tree(labels, features11, 0.9, 5));
@@ -975,7 +990,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     coords = zeros(2,num_users);
     for i in 1:num_users
         coord = id2lc[no2id[i]];
-        coord = coord + rand(Normal(0.0,0.5),2);
+        coord = coord + rand(Normal(0.0,1.5),2);
         coord[1] = min(90, max(-90, coord[1]));
         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
         push!(coordinates, coord);
@@ -989,7 +1004,7 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
 
-    dat = MAT.matread("results/livejournal0_distanceopt.mat");
+    dat = MAT.matread("results/livejournal1_distanceopt.mat");
 
     if (epsilon > 0)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt, C0=dat["C"]);
@@ -1064,9 +1079,9 @@ end
 
 #----------------------------------------------------------------
 function plot_mushroom(A, C, coords, option="degree", filename="output")
-    h = Plots.plot(size=(570,450), title="Fungal Network (Pv_MIUN)",
-                                   xlabel=L"x",
-                                   ylabel=L"y",
+    h = Plots.plot(size=(570,450), title="Fungal Network (Pv_M_I_U_N_42d_1)",
+                                   xlabel="x",
+                                   ylabel="y",
                                    framestyle=:box,
                                    grid="off");
 
@@ -1083,7 +1098,7 @@ end
 function analyze_mushroom()
     fnames = filter(x->contains(x,".mat"), readdir("results/fungal_networks/Conductance"));
 
-    dgrs4network = Dict{String,Vector{Float64}}();
+    base4network = Dict{String,Vector{Float64}}();
     C4network    = Dict{String,Vector{Float64}}();
     eps4network  = Dict{String,Float64}();
 
@@ -1092,7 +1107,7 @@ function analyze_mushroom()
 #           A,B,C,D,coords,epsilon = test_mushroom(fname, 1.0; ratio=0.00, max_num_step=100, opt_epsilon=true);
 #           MAT.matwrite("results/fungal_networks/Conductance/" * fname, Dict("A" => A, "B" => B, "C" => C, "coords" => coords, "epsilon" => epsilon));
 #
-#           dgrs4network[fname] = vec(sum(A,1));
+#           base4network[fname] = vec(sum(A,1));
 #           C4network[fname] = C;
 #           eps4network[fname] = epsilon;
 #       catch y
@@ -1103,37 +1118,100 @@ function analyze_mushroom()
     xx = Vector{Vector{Float64}}();
     yy = Vector{String}();
     for fname in fnames
+        #--------------------------------------------------
         dat = MAT.matread("results/fungal_networks/Conductance/" * fname);
 
-        dgrs4network[fname] = vec(sum(dat["A"],1));
+        #--------------------------------------------------
+        lg = Graph(dat["A"]);
+        #--------------------------------------------------
+        degree = vec(sum(dat["A"],1));
+        btcetr = LightGraphs.betweenness_centrality(lg);
+        clcetr = LightGraphs.closeness_centrality(lg);
+        evcetr = LightGraphs.eigenvector_centrality(lg);
+        pagerk = LightGraphs.pagerank(lg);
+        #--------------------------------------------------
+
+        base4network[fname] = degree;
         C4network[fname] = dat["C"];
         eps4network[fname] = dat["epsilon"];
 
         xvec = Vector{Float64}();
 
         #-----------------------------------------
-        push!(xvec, length(C4network[fname]));
+#       push!(xvec, length(C4network[fname]));
         #-----------------------------------------
-#       push!(xvec, mean(dgrs4network[fname]));
-#       push!(xvec, maximum(dgrs4network[fname]));
-#       push!(xvec, std(dgrs4network[fname]));
+#       push!(xvec, mean(base4network[fname]));
+#       push!(xvec, maximum(base4network[fname]));
+#       push!(xvec, std(base4network[fname]));
         #-----------------------------------------
         push!(xvec, maximum(C4network[fname]));
         push!(xvec, mean(C4network[fname]));
-        push!(xvec, std(C4network[fname]));
+#       push!(xvec, std(C4network[fname]));
         #-----------------------------------------
 
         push!(xx, xvec);
         push!(yy, join(split(fname, "_")[1:end-2], "_"));
+        #--------------------------------------------------
     end
-
     X = [xvec[i] for xvec in xx, i in 1:length(xx[1])];
 
     accuracy = cross_val_score(LogisticRegression(fit_intercept=true), X, yy; cv=5);
 
     println("accuracy: ", mean(accuracy));
 
-    return dgrs4network, C4network, eps4network, X, yy, accuracy;
+    #------------------------------------------------------------
+    h = Plots.plot(size=(350,260), title="Fungal Networks",
+                                   xlabel="maximal vertex core score",
+                                   ylabel="mean vertex core score",
+                                   xlim = (4,24),
+                                   xticks = 4:5:24,
+                                   ylim = (0,15),
+                                   framestyle=:box,
+                                   legend=:none);
+    #------------------------------------------------------------
+    markershapes = [:circle, :utriangle, :dtriangle, :rect, :diamond];
+    markercolors = [:red, :blue, :green];
+    #------------------------------------------------------------
+    max_cs = Vector()
+    ave_cs = Vector()
+    shp_mk = Vector()
+    clr_mk = Vector()
+    #------------------------------------------------------------
+    for (i,label) in enumerate(unique(yy))
+        #--------------------------------------------------------
+        scatter!(h, [], [], markershape=markershapes[div(i-1,3)+1],
+                            markercolor=markercolors[mod(i-1,3)+1],
+                            markeralpha=0.6,
+                            markerstrokewidth=0.1,
+                            markerstrokecolor=markercolors[mod(i-1,3)+1],
+                            markerstrokealpha=1.0,
+                            label=label * " (" * string(sum(yy.==label)) * ")");
+        #--------------------------------------------------------
+        max_cs = vcat(max_cs, X[yy.==label, 1]);
+        ave_cs = vcat(ave_cs, X[yy.==label, 2]);
+        shp_mk = vcat(shp_mk, ones(Int64, sum(yy.==label)) * (div(i-1,3)+1));
+        clr_mk = vcat(clr_mk, ones(Int64, sum(yy.==label)) * (mod(i-1,3)+1));
+        #--------------------------------------------------------
+    end
+    #------------------------------------------------------------
+
+    order = randperm(length(max_cs));
+
+    #------------------------------------------------------------
+    for id in order
+        scatter!(h, [max_cs[id]], [ave_cs[id]], markershape=markershapes[shp_mk[id]],
+                                                markercolor=markercolors[clr_mk[id]],
+                                                markeralpha=0.6,
+                                                markerstrokewidth=0.1,
+                                                markerstrokecolor=markercolors[clr_mk[id]],
+                                                markerstrokealpha=1.0,
+                                                label="");
+    end
+    #------------------------------------------------------------
+
+    Plots.savefig(h, "results/fungal_networks.svg");
+
+    return base4network, C4network, eps4network, X, yy, accuracy, h;
 end
 #----------------------------------------------------------------
 
@@ -1221,7 +1299,7 @@ function intro_celegans(A, C, coords, option="community", filename="output")
     elseif (option == "core_periphery")
         #--------------------------------------------------------
         vtx_sorted = sortperm(C, rev=true);
-        num_core = Int64(ceil(0.1335*n));
+        num_core = Int64(ceil(0.10*n));
         Cmax = C[vtx_sorted[1]];
         Cmid = C[vtx_sorted[num_core]];
         Cmin = C[vtx_sorted[end]];
@@ -1491,16 +1569,16 @@ function plot_algo(sigma, num_vertices)
                                  legend=false,
                                  color="black",
                                  linewidth=2.0,
-                                 linestyle=:dash,
+                                 linestyle=:dot,
                                  alpha=0.5);
                     else
                         Plots.plot!(h, [coords[i][1], coords[j][1]],
                                  [coords[i][2], coords[j][2]],
                                  legend=false,
-                                 color="black",
+                                 color="gray",
                                  linewidth=0.5,
                                  linestyle=:solid,
-                                 alpha=0.15);
+                                 alpha=0.3);
                     end
                 end
                 #------------------------------------------------
@@ -1552,7 +1630,7 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
 
     order = sortperm(vec(sum(A,1)), rev=false);
 
-    h = Plots.plot(size=(270,260), title="",
+    h = Plots.plot(size=(250,240), title="",
                              xlabel="vertex indices",
                              ylabel="expected degrees",
                              xlim=(1,277),
@@ -1573,7 +1651,7 @@ end
 
 #----------------------------------------------------------------
 function plot_cs_correlation(C_nev, C_fmm)
-    h = Plots.plot(size=(270,260), title="",
+    h = Plots.plot(size=(250,240), title="",
                              xlabel="core scores (naive)",
                              ylabel="core scores (FMM)",
                              xlim=(-5.35,0.35),
@@ -1658,31 +1736,31 @@ function plot_timings()
     fmm_deriv = [0.000862, 0.014218,  0.224220,    2.639909,     26.322895];
     #------------------------------------------------------------
 
-    h = Plots.plot(size=(570,450), title="Timings", xlabel="number of vertices",
-                                              ylabel="time per function call (sec)",
-                                              xlim=(10^(+1.7), 10^(+6.3)),
-                                              ylim=(10^(-3.7), 10^(+2.7)),
-                                              xscale=:log10,
-                                              yscale=:log10,
-                                              framestyle=:box,
-                                              grid="on");
+    h = Plots.plot(size=(330,270), title="Timings", xlabel="number of vertices",
+                                   ylabel="time per function call (sec)",
+                                   xlim=(10^(+1.7), 10^(+6.3)),
+                                   ylim=(10^(-3.7), 10^(+2.7)),
+                                   xscale=:log10,
+                                   yscale=:log10,
+                                   framestyle=:box,
+                                   grid="on");
 
     exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
     exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
     exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
-    Plots.scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
+    Plots.scatter!(h, size, fmm_omega, label="objective function", color="red", ms=6.5, markerstrokewidth=0.5);
     Plots.plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
-    Plots.scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
+    Plots.scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=6.5, markerstrokewidth=0.5);
     Plots.plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
-    Plots.scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
+    Plots.scatter!(h, size, fmm_gener, label="generate network", color="green", ms=6.5, markerstrokewidth=0.5);
     Plots.plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
 
-    Plots.scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
-    Plots.scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
-    Plots.scatter!(h, size, fmm_gener, label="", color="green", ms=8);
+    Plots.scatter!(h, size, fmm_omega, label="", color="red",   ms=6.5, markerstrokewidth=0.5);
+    Plots.scatter!(h, size, fmm_deriv, label="", color="blue",  ms=6.5, markerstrokewidth=0.5);
+    Plots.scatter!(h, size, fmm_gener, label="", color="green", ms=6.5, markerstrokewidth=0.5);
 
-    Plots.savefig(h, "results/fmm_timings.pdf");
+    Plots.savefig(h, "results/fmm_timings.svg");
 
     return h
 end

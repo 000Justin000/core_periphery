@@ -5,13 +5,18 @@ clear; close all;
 load('../results/brightkite_distanceopt.mat');
 
 %%
-h = figure('Units', 'inches', 'Position', [0,0,12,9]); 
-ax = worldmap([-90, 90],[180.001, 179.999]); ax.Units = 'inches';
+h = figure('Units', 'inches'); 
+ax = worldmap([-90, 90],[-180, 180]); ax.Units = 'inches';
+setm(ax, 'MapProjection', 'braun');
 load coastlines;
 plotm(coastlat,coastlon);
 geoshow(coastlat,coastlon,'Color','black');
 setm(ax,'mlabelparallel',-90);
 gridm off; mlabel off; plabel off;
+
+h.PaperSize = [12.4400,  7.9230];
+ax.Position = [ -1.5300, -2.1500, 15.5000, 12.2250];
+h.Position  = [  0.0000,  0.0000, 12.4400,  7.9230];
 
 %%
 coords_data = cell2mat(coords);
@@ -28,13 +33,4 @@ for i = 1:n
 end
 
 %%
-print('brightkite','-dpdf','-r0');
-
-h.PaperSize = [9.3000, 6.8100];
-ax.Position = [0.0000, -0.2700, 9.3000, 7.3500];
-h.Position  = [0.0000,  0.0000, 9.3000, 6.8100];
-
-% ax.Position = [0.5000, 0.1500, 9.3000, 7.3500];
-% h.Position  = [0.0000,  0.0000, 9.8000, 7.5500];
-
-print('brightkite','-dpdf','-r0');
+print('brightkite','-dsvg','-r0');

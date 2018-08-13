@@ -2,16 +2,20 @@
 clear; close all;
 
 %%
-load('../results/livejournal0_distanceopt.mat');
+load('../results/livejournal1_distanceopt.mat');
 
 %%
-h = figure('Units', 'inches', 'Position', [0,0,12,9]);
-ax = usamap('conus'); ax.Units = 'inches'; 
-ax.Projection = 'orthographic';
+h = figure('Units', 'inches', 'Position', [0,0,20,15]);
+ax = usamap('conus'); ax.Units = 'inches';
+% setm(ax, 'MapProjection', 'bsam');
 states = shaperead('usastatelo', 'UseGeoCoords', true, 'Selector', {@(name) ~any(strcmp(name,{'Alaska','Hawaii'})), 'Name'});
 faceColors = makesymbolspec('Polygon', {'INDEX', [1 numel(states)], 'FaceColor', 'w'}); %NOTE - colors are random
 geoshow(ax, states, 'DisplayType', 'polygon', 'SymbolSpec', faceColors);
 framem off; gridm off; mlabel off; plabel off;
+
+h.PaperSize = [12.4400,  7.9230];
+ax.Position = [ -2.6000, -2.4000, 18.0000, 12.2250];
+h.Position  = [  0.0000,  0.0000, 12.4400,  7.9230];
 
 %%
 coords_data = cell2mat(coords);
@@ -30,5 +34,8 @@ end
 %---------------------------------------------------------------------
 
 for i = 1:n
-    geoshow(coordinates(vi & cid==i,1), coordinates(vi & cid==i,2), 'DisplayType', 'point', 'marker','o', 'MarkerSize',2, 'MarkerEdgeColor',cmap(i,:), 'MarkerFaceColor',cmap(i,:));
+    geoshow(coordinates(vi & cid==i,1), coordinates(vi & cid==i,2), 'DisplayType', 'point', 'marker','o', 'MarkerSize',2.0, 'MarkerEdgeColor',cmap(i,:), 'MarkerFaceColor',cmap(i,:));
 end
+
+%%
+print('livejournal','-dpng','-r200');
