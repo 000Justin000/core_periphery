@@ -267,6 +267,8 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     if (epsilon > 0)
         D = Haversine_matrix(dat["Tube_Locations"]);
@@ -642,6 +644,8 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     if (epsilon > 0)
         # D = Haversine_matrix(coordinates);
@@ -903,6 +907,8 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     if (epsilon > 0)
         @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
@@ -1003,6 +1009,8 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     dat = MAT.matread("results/livejournal1_distanceopt.mat");
 
@@ -1053,6 +1061,8 @@ function test_mushroom(fname, epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     #--------------------------------
     if (epsilon > 0)
@@ -1233,6 +1243,8 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, o
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     #--------------------------------
     if (epsilon > 0)
@@ -1465,7 +1477,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load facebook100 data
     #--------------------------------
@@ -1484,6 +1496,9 @@ function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     #--------------------------------
     if (epsilon > 0)
@@ -1619,11 +1634,11 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     #-----------------------------------------------------------------------------
 
     omega_nev = StochasticCP.omega(A, C, D, epsilon);
-    omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio));
+    omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
 
     epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
     srd_nev = StochasticCP.sum_rho_logD(C,D,epsilon);
-    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio));
+    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
 
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
@@ -1715,9 +1730,9 @@ function timeit(n, metric, CoM2, epsilon)
         println(countnz(B_nev)/n);
     end
 
-    @time [B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0))];
-    @time [omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, B_fmm, 0.0, Dict("ratio" => ratio))];
-    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, Dict("ratio" => ratio))];
+    @time [B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, B_fmm, 0.0, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
     println(countnz(B_fmm)/n);
 end
 #----------------------------------------------------------------
@@ -1767,7 +1782,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
         #--------------------------------------------------------
         dis(i,j) = min(max(i,j) - min(i,j), min(i,j)+n - max(i,j));
         rd(i) = mod(i-1+n,n) + 1;
@@ -1814,6 +1829,9 @@ function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num
         opt["ratio"] = ratio;
         opt["thres"] = thres;
         opt["max_num_step"] = max_num_step;
+        opt["opt_epsilon"] = opt_epsilon;
+        opt["delta_1"] = 2.0;
+        opt["delta_2"] = 0.2;
 
         C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
         B = StochasticCP.model_gen(C, D, epsilon);
