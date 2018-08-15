@@ -1,7 +1,6 @@
 #---------------------------------------------------------------------------------
-module StochasticCP
+module SCP
 using Optim
-#   using Plots; pyplot();
 
     export model_fit, model_gen
 
@@ -121,7 +120,7 @@ using Optim
         println(epsilon);
 
         println(omega(A,theta,D,epsilon));
-        @assert epsilon > 0;
+        @assert epsilon >= 0;
         return theta, epsilon;
     end
     #-----------------------------------------------------------------------------

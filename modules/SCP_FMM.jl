@@ -1,5 +1,5 @@
 #---------------------------------------------------------------------------------
-module StochasticCP_FMM
+module SCP_FMM
     using StatsBase;
     using Distances;
     using NearestNeighbors;
@@ -480,7 +480,7 @@ module StochasticCP_FMM
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 nei = Int64(floor(nef) + (rand() < (nef - floor(nef)) ? 1 : 0));
-                
+
                 # generate nei edges between this two group of nodes
                 grp_1 = subtree_range(idx_1,n_node);
                 grp_2 = subtree_range(idx_2,n_node);

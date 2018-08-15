@@ -8,9 +8,9 @@ using Dierckx;
 using Distances;
 using Distributions;
 using NearestNeighbors;
-using StochasticCP;
-using StochasticCP_SGD;
-using StochasticCP_FMM;
+using SCP;
+using SCP_SGD;
+using SCP_FMM;
 using NLsolve;
 using LightGraphs;
 using TikzGraphs;
@@ -272,16 +272,16 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000
 
     if (epsilon > 0)
         D = Haversine_matrix(dat["Tube_Locations"]);
-        theta, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(dat["Tube_Locations"]));
-        theta, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        theta, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(theta, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
     return A, B, theta, D, dat["Tube_Locations"], epsilon;
@@ -649,21 +649,21 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
 
     if (epsilon > 0)
         # D = Haversine_matrix(coordinates);
-        # @time theta, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # B = StochasticCP.model_gen(theta, D, epsilon);
-        # theta, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        @time theta, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        # @time theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        # B = SCP.model_gen(theta, D, epsilon);
+        # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = Haversine_matrix(coordinates);
-        # B = StochasticCP.model_gen(theta, D, epsilon);
+        # B = SCP.model_gen(theta, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        theta, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        theta, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(theta, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
     return A, B, theta, D, coordinates, epsilon;
@@ -911,8 +911,8 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     opt["delta_2"] = 0.2;
 
     if (epsilon > 0)
-        @time theta, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
@@ -1015,8 +1015,8 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     dat = MAT.matread("results/livejournal1_distanceopt.mat");
 
     if (epsilon > 0)
-        @time theta, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt, theta0=dat["C"]);
-        B = StochasticCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt, theta0=dat["C"]);
+        B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
@@ -1068,19 +1068,19 @@ function test_mushroom(fname, epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
         # D = nothing;
-        # theta, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # theta, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        theta, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        # B = StochasticCP.model_gen(theta, D, epsilon);
-        B = StochasticCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=Dict("ratio"=>0.0));
+        # theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        theta, epsilon = SCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        # B = SCP.model_gen(theta, D, epsilon);
+        B = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=Dict("ratio"=>0.0));
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        theta, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        theta, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(theta, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
     return A, B, theta, D, coordinates, epsilon;
@@ -1249,23 +1249,23 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, o
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-#       theta, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        @time theta, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+#       theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
 
-#       B = StochasticCP.model_gen(theta, D, epsilon);
-        B1 = StochasticCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        B2 = StochasticCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        B3 = StochasticCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+#       B = SCP.model_gen(theta, D, epsilon);
+        B1 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B2 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B3 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
 
         B = [B1, B2, B3];
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        theta, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        theta, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(theta, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
     return A, B, theta, D, coordinates, epsilon;
@@ -1398,8 +1398,8 @@ function Karate(thres=1.0e-6, max_num_step=100)
 
     #--------------------------------
     D = ones(A)-eye(A);
-    theta, epsilon = StochasticCP.model_fit(A, D, 1; opt=Dict("thres"=>1.0e-6, "max_num_step"=>100));
-    B = StochasticCP.model_gen(theta, D, 1);
+    theta, epsilon = SCP.model_fit(A, D, 1; opt=Dict("thres"=>1.0e-6, "max_num_step"=>100));
+    B = SCP.model_gen(theta, D, 1);
     #--------------------------------
 
     return A, B, theta, D, coordinates, epsilon;
@@ -1503,18 +1503,18 @@ function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, o
     #--------------------------------
     if (epsilon > 0)
         D = Hamming_matrix(coordinates);
-        theta, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # theta, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        # theta, epsilon = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        # theta, epsilon = SCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Hamming_matrix(coordinates));
-        theta, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        theta, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(theta, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
     return A, B, theta, D, coordinates, epsilon;
@@ -1566,7 +1566,7 @@ function plot_algo(sigma, num_vertices)
 
     theta = ones(n) * (-4.0) + rand(n)*1.2;
     D = Euclidean_matrix(coords);
-    A = StochasticCP.model_gen(theta, D, 2);
+    A = SCP.model_gen(theta, D, 2);
 
     #------------------------------------------------------------
     if (length(coords[1]) == 2)
@@ -1633,12 +1633,12 @@ function check(A, theta, D, coordinates, metric, CoM2, epsilon, ratio)
     end
     #-----------------------------------------------------------------------------
 
-    omega_nev = StochasticCP.omega(A, theta, D, epsilon);
-    omega_fmm = StochasticCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
+    omega_nev = SCP.omega(A, theta, D, epsilon);
+    omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
 
-    epd_nev = vec(sum(StochasticCP.probability_matrix(theta, D, epsilon), 1));
-    srd_nev = StochasticCP.sum_rho_logD(theta,D,epsilon);
-    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
+    epd_nev = vec(sum(SCP.probability_matrix(theta, D, epsilon), 1));
+    srd_nev = SCP.sum_rho_logD(theta,D,epsilon);
+    epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
 
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
@@ -1724,15 +1724,15 @@ function timeit(n, metric, CoM2, epsilon)
         #------------------------------------------------------------
         D = D + D';
         #------------------------------------------------------------
-        @time [B_nev = StochasticCP.model_gen(theta, D, epsilon)];
-        @time [omega_nev = StochasticCP.omega(B_nev, theta, D, epsilon)];
-        @time [epd_nev = vec(sum(StochasticCP.probability_matrix(theta, D, epsilon), 1)), srd = StochasticCP.sum_rho_logD(theta,D,epsilon)];
+        @time [B_nev = SCP.model_gen(theta, D, epsilon)];
+        @time [omega_nev = SCP.omega(B_nev, theta, D, epsilon)];
+        @time [epd_nev = vec(sum(SCP.probability_matrix(theta, D, epsilon), 1)), srd = SCP.sum_rho_logD(theta,D,epsilon)];
         println(countnz(B_nev)/n);
     end
 
-    @time [B_fmm = StochasticCP_FMM.model_gen(theta, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0, "delta_1" => 2.0, "delta_2" => 0.2))];
-    @time [omega_fmm = StochasticCP_FMM.omega!(theta, coords, CoM2, Dict(), epsilon, bt, B_fmm, 0.0, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
-    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(theta, coords, CoM2, Dict(), epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [B_fmm = SCP_FMM.model_gen(theta, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, Dict(), epsilon, bt, B_fmm, 0.0, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [(epd_fmm, srd_fmm, fmm_tree) = SCP_FMM.epd_and_srd!(theta, coords, CoM2, Dict(), epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
     println(countnz(B_fmm)/n);
 end
 #----------------------------------------------------------------
@@ -1833,8 +1833,8 @@ function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num
         opt["delta_1"] = 2.0;
         opt["delta_2"] = 0.2;
 
-        theta, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        B = StochasticCP.model_gen(theta, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
         #--------------------------------------------------------
 
         return A, B, theta, epsilon
