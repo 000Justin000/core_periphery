@@ -13,7 +13,7 @@ mlabel off; plabel off;
 coords_data = cell2mat(coords);
 coordinates = reshape(coords_data, [2,51406])';
 
-n = 100;
+n = 1000;
 cmap = jet(n);
 cid = ceil((C-min(C)) / (max(C)-min(C)) * (n-1)) + 1;
 
@@ -22,6 +22,3 @@ vi = ((-90 < coordinates(:,1) & coordinates(:,1) < 90) & (-179.999 < coordinates
 for i = 1:n
     geoshow(coordinates(vi & cid==i,1), coordinates(vi & cid==i,2), 'linestyle','none', 'marker','o', 'MarkerSize',3, 'MarkerEdgeColor',cmap(i,:), 'MarkerFaceColor',cmap(i,:));
 end
-
-%%
-print('brightkite', '-dsvg');
