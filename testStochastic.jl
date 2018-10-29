@@ -1,16 +1,16 @@
 using StatsBase;
 using MAT;
 using Colors;
-using Plots; pyplot();
+using Plots;
 using LaTeXStrings;
 using MatrixNetworks;
 using Dierckx;
 using Distances;
 using Distributions;
 using NearestNeighbors;
-using StochasticCP;
-using StochasticCP_SGD;
-using StochasticCP_FMM;
+using SCP;
+using SCP_SGD;
+using SCP_FMM;
 using NLsolve;
 using LightGraphs;
 using TikzGraphs;
@@ -159,7 +159,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_core_periphery(h, A, C, coords, option="degree";
+function plot_core_periphery(h, A, theta, coords, option="degree";
                              plot_links=false,
                              distance="Euclidean")
     @assert issymmetric(A);
@@ -167,23 +167,16 @@ function plot_core_periphery(h, A, C, coords, option="degree";
 
     d = vec(sum(A,1));
 
-    if (option == "degree")
-        color = [(i in sortperm(d)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
-    elseif (option == "core_score")
-        color = [(i in sortperm(C)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
-    else
-        error("option not supported.");
-    end
+    color = [(i in sortperm(theta)[end-Int64(ceil(0.10*n)):end] ? colorant"orange" : colorant"blue") for i in 1:n];
 
     if (option == "degree")
         println("option: degree")
         order = sortperm(d);
-        rk = sortperm(sortperm(d))
-        ms = (rk/n).^20 * 6.0 + 1.5;
+        ms = (sqrt.(d) / sqrt(maximum(d))) * 3.6 + 1.0;
     elseif (option == "core_score")
         println("option: core_score")
-        order = sortperm(C);
-        rk = sortperm(sortperm(C))
+        order = sortperm(theta);
+        rk = sortperm(sortperm(theta))
         ms = (rk/n).^20 * 6.0 + 1.5;
     else
         error("option not supported.");
@@ -221,7 +214,7 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.10);
                         else
                             min_id = coords[i][1] <= coords[j][1] ? i : j;
                             max_id = coords[i][1] >  coords[j][1] ? i : j;
@@ -233,14 +226,14 @@ function plot_core_periphery(h, A, C, coords, option="degree";
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.10);
 
                             Plots.plot!(h, [coords[max_id][1], 180.0],
                                      [coords[max_id][2], lat_c],
                                      legend=false,
                                      color="gray",
                                      linewidth=0.10,
-                                     alpha=1.00);
+                                     alpha=0.10);
                         end
                     end
                     #------------------------------------------------
@@ -253,7 +246,11 @@ function plot_core_periphery(h, A, C, coords, option="degree";
         #------------------------------------------------------------
     end
     #----------------------------------------------------------------
-    Plots.scatter!(h, [coord[1] for coord in coords[order]], [coord[2] for coord in coords[order]], ms=ms[order], c=color[order], alpha=1.00, label="", markerstrokewidth=0.5);
+    Plots.scatter!(h, [coord[1] for coord in coords[order]], [coord[2] for coord in coords[order]], ms=ms[order], c=color[order], alpha=1.00,
+                                                                                                                                  label="",
+                                                                                                                                  markerstrokealpha=0.1,
+                                                                                                                                  markerstrokewidth=0.0,
+                                                                                                                                  markerstrokecolor="black");
     #----------------------------------------------------------------
 end
 #----------------------------------------------------------------
@@ -270,35 +267,37 @@ function test_underground(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     if (epsilon > 0)
         D = Haversine_matrix(dat["Tube_Locations"]);
-        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(dat["Tube_Locations"]));
-        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(C, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, C, D, dat["Tube_Locations"], epsilon;
+    return A, B, theta, D, dat["Tube_Locations"], epsilon;
 end
 #----------------------------------------------------------------
 
 
 #----------------------------------------------------------------
-function plot_underground(A, C, coords, option="degree", filename="output")
+function plot_underground(A, theta, coords, option="degree", filename="output")
     h = Plots.plot(size=(570,450), title="London Underground",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
                              framestyle=:box,
                              grid="off");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+    plot_core_periphery(h, A, theta, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
                         distance="Haversine")
 
@@ -309,19 +308,19 @@ end
 
 
 #----------------------------------------------------------------
-function analyze_underground(A,C)
+function analyze_underground(A,theta)
     degree = vec(sum(A,1));
 
     dat = MAT.matread("data/london_underground/london_underground_clean_traffic.mat");
 
     # random forest prediction
-    dgrs_vec = degree;
-    C_vec = C;
+    base_vec = degree;
+    theta_vec = theta;
 
     labels = convert(Array{Float64,1}, dat["Traffic"]);
-    features1  = reshape(dgrs_vec, :, 1);
-    features2  = reshape(C_vec, :, 1);
-    features12 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    features1  = reshape(base_vec, :, 1);
+    features2  = reshape(theta_vec, :, 1);
+    features12 = convert(Array{Float64,2}, reshape([base_vec; theta_vec], :, 2));
     r1  = nfoldCV_forest(labels, features1,  1, 100, 3, 5, 0.7);
     r2  = nfoldCV_forest(labels, features2,  1, 100, 3, 5, 0.7);
     r12 = nfoldCV_forest(labels, features12, 2, 100, 3, 5, 0.7);
@@ -399,36 +398,35 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     @assert issymmetric(A);
     @assert issymmetric(D);
 
+    #------------------------------------------------------------
     degrees_ori = vec(sum(A,1));
     degrees_nev = vec(sum(mean(BB_nev),1));
     degrees_fmm = vec(sum(mean(BB_fmm),1));
+    #------------------------------------------------------------
+    n = size(A,1);
+    #------------------------------------------------------------
 
     #------------------------------------------------------------
-    h1 = Plots.plot(size=(270,260), title="",
-                              xlabel="vertex degrees (original)",
-                              ylabel="vertex degrees (naive)",
+    h1 = Plots.plot(size=(240,220), title="",
+                              xlabel="degrees (original)",
+                              ylabel="degrees (generated)",
                               xlim=(-2, 80),
                               ylim=(-2, 80),
                               grid="off",
                               framestyle=:box,
                               legend=:topleft);
     Plots.plot!(h1, -2:80, -2:80, color="red", label="ideal");
-    Plots.scatter!(h1, degrees_ori, degrees_nev, color="blue", label="naive", markerstrokewidth=0.3);
+    degrees_original  = vcat(degrees_ori, degrees_ori);
+    degrees_generated = vcat(degrees_nev, degrees_fmm);
+    color = [i <= n ? colorant"blue" : colorant"orange" for i in 1:2*n];
+    order = randperm(2*n);
     #------------------------------------------------------------
-    h2 = Plots.plot(size=(270,260), title="",
-                              xlabel="vertex degrees (original)",
-                              ylabel="vertex degrees (FMM)",
-                              xlim=(-2, 80),
-                              ylim=(-2, 80),
-                              grid="off",
-                              framestyle=:box,
-                              legend=:topleft);
-    Plots.plot!(h2, -2:80, -2:80, color="red", label="ideal");
-    Plots.scatter!(h2, degrees_ori, degrees_fmm, color="blue", label="FMM", markerstrokewidth=0.3);
+    Plots.scatter!(h1, [], [], color="blue",   label="naive", markerstrokewidth=0.1, markerstrokecolor="blue",   markerstrokealpha=1.0, markersize=3.0, markeralpha=0.6);
+    Plots.scatter!(h1, [], [], color="orange", label="FMM",   markerstrokewidth=0.1, markerstrokecolor="orange", markerstrokealpha=1.0, markersize=3.0, markeralpha=0.6);
+    Plots.scatter!(h1, degrees_original[order], degrees_generated[order], color=color[order], label="", markerstrokewidth=0.1, markerstrokecolor=color[order], markerstrokealpha=1.0, markersize=3.0, markeralpha=0.6);
     #------------------------------------------------------------
 
     #------------------------------------------------------------
-    n = size(A,1);
     AS     = Array{Float64,1}();
     BS_nev = Array{Float64,1}();
     BS_fmm = Array{Float64,1}();
@@ -461,7 +459,7 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     accumulated_nev = Array{Float64,1}();
     accumulated_fmm = Array{Float64,1}();
 
-    thresholds = 0.00:0.01:1.40;
+    thresholds = 0.00:0.01:1.35;
 
     for thres in thresholds
         push!(accumulated_ori, sum(AS     .< thres));
@@ -470,19 +468,19 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
     end
 
     #------------------------------------------------------------
-    h3 = Plots.plot(size=(570,300), title="",
+    h2 = Plots.plot(size=(250,220), title="",
                               xlabel="distance threshold (mm)",
                               ylabel="number of edges",
-                              xlim=(0.00,1.40),
+                              xlim=(0.00,1.35),
                               ylim=(0, 2000),
-                              xticks=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4],
+                              xticks=[0.0, 0.3, 0.6, 0.9, 1.2],
                               grid="off",
                               framestyle=:box,
-                              legend=:topleft);
+                              legend=:bottomright);
     #------------------------------------------------------------
-    Plots.plot!(h3, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
-    Plots.plot!(h3, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
-    Plots.plot!(h3, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
+    Plots.plot!(h2, thresholds, accumulated_ori, linewidth=3.5, linestyle=:solid, color="grey",   label="original");
+    Plots.plot!(h2, thresholds, accumulated_nev, linewidth=2.0, linestyle=:solid, color="blue",   label="naive");
+    Plots.plot!(h2, thresholds, accumulated_fmm, linewidth=1.5, linestyle=:solid, color="orange", label="FMM");
 
 #     Ahist = fit(Histogram, AS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
 #     Bhist = fit(Histogram, BS, 0.0 : 1.0e6 : 2.1e7, closed=:right);
@@ -512,11 +510,10 @@ function celegans_gen_analysis(A, BB_nev, BB_fmm, D)
 #
 #     Plots.savefig(h, "results/openflight_probE.pdf");
 
-    Plots.savefig(h1, "results/celegans_degrees_nev.svg");
-    Plots.savefig(h2, "results/celegans_degrees_fmm.svg");
-    Plots.savefig(h3, "results/celegans_hist_distance.svg");
+    Plots.savefig(h1, "results/celegans_degrees.svg");
+    Plots.savefig(h2, "results/celegans_hist_distance.svg");
 
-    return AS, BS_nev, BS_fmm, DS, h1, h2, h3
+    return AS, BS_nev, BS_fmm, DS, h1, h2
 end
 #----------------------------------------------------------------
 
@@ -595,7 +592,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
+function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true, delta_1=2.0, delta_2=0.2)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -647,39 +644,92 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = delta_1;
+    opt["delta_2"] = delta_2;
 
     if (epsilon > 0)
         # D = Haversine_matrix(coordinates);
-        # @time C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # B = StochasticCP.model_gen(C, D, epsilon);
-        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        # @time theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        # B = SCP.model_gen(theta, D, epsilon);
+        # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        t1 = time_ns()
+        @time theta, epsilon, optim = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        t2 = time_ns()
+
+        B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = Haversine_matrix(coordinates);
-        # B = StochasticCP.model_gen(C, D, epsilon);
+        # B = SCP.model_gen(theta, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Haversine_matrix(coordinates));
-        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(C, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon, (t2-t1)/1.0e9/optim.f_calls;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_openflight(A, C, coords, option="degree", filename="output")
-    h = Plots.plot(size=(570,350), title="Openflight",
-                             xlabel=L"\rm{Longitude}(^\circ)",
-                             ylabel=L"\rm{Latitude}(^\circ)",
+function tradeoff_openflight(delta1_array, delta2_array)
+    theta0 = MAT.matread("results/openflight_distanceopt.mat")["C"];
+
+    delta1_time = Vector{Float64}();
+    delta1_rmse = Vector{Float64}();
+    delta1_corr = Vector{Float64}();
+    delta1_thta = Vector{Vector{Float64}}();
+    delta1_epsl = Vector{Float64}();
+    for delta1 in delta1_array
+        A,B,theta,D,coordinates,epsilon,t = test_openflight(2.3; ratio=0.00, max_num_step=1000, opt_epsilon=true, delta_1=delta1);
+        push!(delta1_time, t);
+        push!(delta1_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        push!(delta1_corr, cor(theta,theta0));
+        push!(delta1_thta, theta);
+        push!(delta1_epsl, epsilon);
+    end
+
+    delta2_time = Vector{Float64}();
+    delta2_rmse = Vector{Float64}();
+    delta2_corr = Vector{Float64}();
+    delta2_thta = Vector{Vector{Float64}}();
+    delta2_epsl = Vector{Float64}();
+    for delta2 in delta2_array
+        A,B,theta,D,coordinates,epsilon,t = test_openflight(1.0; ratio=0.00, max_num_step=1000, opt_epsilon=true, delta_2=delta2);
+        push!(delta2_time, t);
+        push!(delta2_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        push!(delta2_corr, cor(theta,theta0));
+        push!(delta2_thta, theta);
+        push!(delta2_epsl, epsilon);
+    end
+
+    return delta1_time, delta1_rmse, delta1_corr, delta1_thta, delta1_epsl, delta2_time, delta2_rmse, delta2_corr, delta2_thta, delta2_epsl;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_openflight(A, theta, coords, option="degree", filename="output")
+#   h = Plots.plot(size=(570,350), title="Openflight",
+#                            xlabel=L"\rm{Longitude}(^\circ)",
+#                            ylabel=L"\rm{Latitude}(^\circ)",
+#                            xticks=[],
+#                            yticks=[]
+#                            framestyle=:none,
+#                            grid="off");
+
+    h = Plots.plot(size=(600,300), title="",
+                             xlabel="",
+                             ylabel="",
+                             xticks=[],
+                             yticks=[],
+                             xlim = [-180, 180],
+                             ylim = [-70, 80],
                              framestyle=:box,
                              grid="off");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+    plot_core_periphery(h, A, theta, [flipdim(coord,1) for coord in coords], option;
                         plot_links=true,
                         distance="Haversine")
 
@@ -690,8 +740,16 @@ end
 
 
 #----------------------------------------------------------------
-function analyze_openflight(A,C)
+function analyze_openflight(A,theta)
+    #--------------------------------------------------
+    lg = Graph(A);
+    #--------------------------------------------------
     degree = vec(sum(A,1));
+    btcetr = LightGraphs.betweenness_centrality(lg);
+    clcetr = LightGraphs.closeness_centrality(lg);
+    evcetr = LightGraphs.eigenvector_centrality(lg);
+    pagerk = LightGraphs.pagerank(lg);
+    #--------------------------------------------------
 
     dat_world = readcsv("data/open_airlines/airports.dat");
     dat_US = readcsv("data/open_airlines/enplanements.csv");
@@ -703,13 +761,13 @@ function analyze_openflight(A,C)
     indices  = [i for i in 1:length(dat_US_code) if ((dat_US_code[i] in keys(code2id)) && (dat_US_code[i] != "") && (degree[code2id[dat_US_code[i]]] != 0))];
     code_vec = [dat_US_code[id] for id in indices];
     empt_vec = [parse(Int64, replace(dat_US_epmt[id], ",", "")) for id in indices];
-    dgrs_vec = [degree[code2id[dat_US_code[id]]] for id in indices];
-    C_vec    = [C[code2id[dat_US_code[id]]] for id in indices];
+    base_vec = [clcetr[code2id[dat_US_code[id]]] for id in indices];
+    theta_vec = [theta[code2id[dat_US_code[id]]] for id in indices];
 
     labels = convert(Array{Float64,1}, empt_vec);
-    features01 = reshape(dgrs_vec, :, 1);
-    features10 = reshape(C_vec, :, 1);
-    features11 = convert(Array{Float64,2}, reshape([dgrs_vec; C_vec], :, 2));
+    features01 = reshape(base_vec, :, 1);
+    features10 = reshape(theta_vec, :, 1);
+    features11 = convert(Array{Float64,2}, reshape([base_vec; theta_vec], :, 2));
 
     #--------------------------------------------------
     # manually test the correlation coefficient
@@ -738,7 +796,7 @@ function analyze_openflight(A,C)
     r10 = Vector{Float64}();
     r11 = Vector{Float64}();
     #--------------------------------------------------
-    for itr in 1:10
+    for itr in 1:30
         r01 = vcat(r01, nfoldCV_tree(labels, features01, 0.9, 5));
         r10 = vcat(r10, nfoldCV_tree(labels, features10, 0.9, 5));
         r11 = vcat(r11, nfoldCV_tree(labels, features11, 0.9, 5));
@@ -836,13 +894,15 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     num_people = 0;
     #--------------------------------
     for i in num_checkins:-1:1
-        if (!(brightkite_dat[i,1] in keys(id2no)))
-            num_people += 1;
-            no2id[num_people] = brightkite_dat[i,1];
-            id2no[brightkite_dat[i,1]] = num_people;
-        end
+        if (!(isapprox(brightkite_dat[i,3],0.0) && isapprox(brightkite_dat[i,4],0.0)))
+            if (!(brightkite_dat[i,1] in keys(id2no)))
+                num_people += 1;
+                no2id[num_people] = brightkite_dat[i,1];
+                id2no[brightkite_dat[i,1]] = num_people;
+            end
 
-        id2lc[brightkite_dat[i,1]] = brightkite_dat[i,3:4];
+            id2lc[brightkite_dat[i,1]] = brightkite_dat[i,3:4];
+        end
     end
     #--------------------------------
 
@@ -873,7 +933,7 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     coords = zeros(2,num_people);
     for i in 1:num_people
         coord = id2lc[no2id[i]];
-        coord = coord + rand(Normal(0.0,1.5),2);
+        coord = coord + rand(Normal(0.0,0.3),2);
         coord[1] = min(90, max(-90, coord[1]));
         coord[2] = coord[2] - floor((coord[2]+180.0) / 360.0) * 360.0;
         push!(coordinates, coord);
@@ -886,28 +946,30 @@ function test_brightkite(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000, 
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     if (epsilon > 0)
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_brightkite(A, C, coords, option="degree", filename="output")
+function plot_brightkite(A, theta, coords, option="degree", filename="output")
     h = Plots.plot(size=(570,350), title="Brightkite",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
                              framestyle=:box,
                              grid="off");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+    plot_core_periphery(h, A, theta, [flipdim(coord,1) for coord in coords], option;
                         plot_links=false,
                         distance="Haversine")
 
@@ -986,29 +1048,32 @@ function test_livejournal(epsilon=1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
+
+    dat = MAT.matread("results/livejournal1_distanceopt.mat");
 
     if (epsilon > 0)
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        # B = StochasticCP_FMM.model_gen(C, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
-        B = nothing;
+        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt, theta0=dat["C"]);
+        B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = nothing;
     else
         error("option not supported.");
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
- 
+
 #----------------------------------------------------------------
-function plot_livejournal(A, C, coords, option="degree", filename="output")
+function plot_livejournal(A, theta, coords, option="degree", filename="output")
     h = Plots.plot(size=(570,350), title="Livejournal",
                              xlabel=L"\rm{Longitude}(^\circ)",
                              ylabel=L"\rm{Latitude}(^\circ)",
                              framestyle=:box,
                              grid="off");
 
-    plot_core_periphery(h, A, C, [flipdim(coord,1) for coord in coords], option;
+    plot_core_periphery(h, A, theta, [flipdim(coord,1) for coord in coords], option;
                         plot_links=false,
                         distance="Haversine")
 
@@ -1035,39 +1100,41 @@ function test_mushroom(fname, epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
         # D = nothing;
-        # C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        # B = StochasticCP.model_gen(C, D, epsilon);
-        B = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=Dict("ratio"=>0.0));
+        # theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        theta, epsilon = SCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        # B = SCP.model_gen(theta, D, epsilon);
+        B = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=Dict("ratio"=>0.0));
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(C, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_mushroom(A, C, coords, option="degree", filename="output")
-    h = Plots.plot(size=(570,450), title="Mushroom",
-                                   xlabel=L"x",
-                                   ylabel=L"y",
+function plot_mushroom(A, theta, coords, option="degree", filename="output")
+    h = Plots.plot(size=(570,450), title="Fungal Network (Pv_M_I_U_N_42d_1)",
+                                   xlabel="x",
+                                   ylabel="y",
                                    framestyle=:box,
                                    grid="off");
 
-    plot_core_periphery(h, A, C, coords, option;
+    plot_core_periphery(h, A, theta, coords, option;
                         plot_links=true,
                         distance="Euclidean")
 
@@ -1080,17 +1147,17 @@ end
 function analyze_mushroom()
     fnames = filter(x->contains(x,".mat"), readdir("results/fungal_networks/Conductance"));
 
-    dgrs4network = Dict{String,Vector{Float64}}();
-    C4network    = Dict{String,Vector{Float64}}();
-    eps4network  = Dict{String,Float64}();
+    base4network  = Dict{String,Vector{Float64}}();
+    theta4network = Dict{String,Vector{Float64}}();
+    eps4network   = Dict{String,Float64}();
 
 #   for fname in fnames
 #       try
-#           A,B,C,D,coords,epsilon = test_mushroom(fname, 1.0; ratio=0.00, max_num_step=100, opt_epsilon=true);
-#           MAT.matwrite("results/fungal_networks/Conductance/" * fname, Dict("A" => A, "B" => B, "C" => C, "coords" => coords, "epsilon" => epsilon));
+#           A,B,theta,D,coords,epsilon = test_mushroom(fname, 1.0; ratio=0.00, max_num_step=100, opt_epsilon=true);
+#           MAT.matwrite("results/fungal_networks/Conductance/" * fname, Dict("A" => A, "B" => B, "C" => theta, "coords" => coords, "epsilon" => epsilon));
 #
-#           dgrs4network[fname] = vec(sum(A,1));
-#           C4network[fname] = C;
+#           base4network[fname] = vec(sum(A,1));
+#           theta4network[fname] = theta;
 #           eps4network[fname] = epsilon;
 #       catch y
 #           println(y);
@@ -1100,42 +1167,105 @@ function analyze_mushroom()
     xx = Vector{Vector{Float64}}();
     yy = Vector{String}();
     for fname in fnames
+        #--------------------------------------------------
         dat = MAT.matread("results/fungal_networks/Conductance/" * fname);
 
-        dgrs4network[fname] = vec(sum(dat["A"],1));
-        C4network[fname] = dat["C"];
-        eps4network[fname] = dat["epsilon"];
+        #--------------------------------------------------
+        lg = Graph(dat["A"]);
+        #--------------------------------------------------
+        degree = vec(sum(dat["A"],1));
+        btcetr = LightGraphs.betweenness_centrality(lg);
+        clcetr = LightGraphs.closeness_centrality(lg);
+        evcetr = LightGraphs.eigenvector_centrality(lg);
+        pagerk = LightGraphs.pagerank(lg);
+        #--------------------------------------------------
+
+        base4network[fname]  = degree;
+        theta4network[fname] = dat["C"];
+        eps4network[fname]   = dat["epsilon"];
 
         xvec = Vector{Float64}();
 
         #-----------------------------------------
-        push!(xvec, length(C4network[fname]));
+#       push!(xvec, length(theta4network[fname]));
         #-----------------------------------------
-#       push!(xvec, mean(dgrs4network[fname]));
-#       push!(xvec, maximum(dgrs4network[fname]));
-#       push!(xvec, std(dgrs4network[fname]));
+#       push!(xvec, mean(base4network[fname]));
+#       push!(xvec, maximum(base4network[fname]));
+#       push!(xvec, std(base4network[fname]));
         #-----------------------------------------
-        push!(xvec, maximum(C4network[fname]));
-        push!(xvec, mean(C4network[fname]));
-        push!(xvec, std(C4network[fname]));
+        push!(xvec, maximum(theta4network[fname]));
+        push!(xvec, mean(theta4network[fname]));
+#       push!(xvec, std(theta4network[fname]));
         #-----------------------------------------
 
         push!(xx, xvec);
         push!(yy, join(split(fname, "_")[1:end-2], "_"));
+        #--------------------------------------------------
     end
-
     X = [xvec[i] for xvec in xx, i in 1:length(xx[1])];
 
     accuracy = cross_val_score(LogisticRegression(fit_intercept=true), X, yy; cv=5);
 
     println("accuracy: ", mean(accuracy));
 
-    return dgrs4network, C4network, eps4network, X, yy, accuracy;
+    #------------------------------------------------------------
+    h = Plots.plot(size=(350,260), title="Fungal Networks",
+                                   xlabel="maximal vertex core score",
+                                   ylabel="mean vertex core score",
+                                   xlim = (4,24),
+                                   xticks = 4:5:24,
+                                   ylim = (0,15),
+                                   framestyle=:box,
+                                   legend=:none);
+    #------------------------------------------------------------
+    markershapes = [:circle, :utriangle, :dtriangle, :rect, :diamond];
+    markercolors = [:red, :blue, :green];
+    #------------------------------------------------------------
+    max_cs = Vector()
+    ave_cs = Vector()
+    shp_mk = Vector()
+    clr_mk = Vector()
+    #------------------------------------------------------------
+    for (i,label) in enumerate(unique(yy))
+        #--------------------------------------------------------
+        scatter!(h, [], [], markershape=markershapes[div(i-1,3)+1],
+                            markercolor=markercolors[mod(i-1,3)+1],
+                            markeralpha=0.6,
+                            markerstrokewidth=0.1,
+                            markerstrokecolor=markercolors[mod(i-1,3)+1],
+                            markerstrokealpha=1.0,
+                            label=label * " (" * string(sum(yy.==label)) * ")");
+        #--------------------------------------------------------
+        max_cs = vcat(max_cs, X[yy.==label, 1]);
+        ave_cs = vcat(ave_cs, X[yy.==label, 2]);
+        shp_mk = vcat(shp_mk, ones(Int64, sum(yy.==label)) * (div(i-1,3)+1));
+        clr_mk = vcat(clr_mk, ones(Int64, sum(yy.==label)) * (mod(i-1,3)+1));
+        #--------------------------------------------------------
+    end
+    #------------------------------------------------------------
+
+    order = randperm(length(max_cs));
+
+    #------------------------------------------------------------
+    for id in order
+        scatter!(h, [max_cs[id]], [ave_cs[id]], markershape=markershapes[shp_mk[id]],
+                                                markercolor=markercolors[clr_mk[id]],
+                                                markeralpha=0.6,
+                                                markerstrokewidth=0.1,
+                                                markerstrokecolor=markercolors[clr_mk[id]],
+                                                markerstrokealpha=1.0,
+                                                label="");
+    end
+    #------------------------------------------------------------
+
+    Plots.savefig(h, "results/fungal_networks.svg");
+
+    return base4network, theta4network, eps4network, X, yy, accuracy, h;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
+function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true, delta_1=2.0, delta_2=0.2)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -1152,41 +1282,70 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, o
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = delta_1;
+    opt["delta_2"] = delta_2;
 
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
-#       C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        @time C, epsilon = StochasticCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+#       theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        t1 = time_ns()
+        @time theta, epsilon, optim = SCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        t2 = time_ns()
 
-#       B = StochasticCP.model_gen(C, D, epsilon);
-        B1 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        B2 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
-        B3 = StochasticCP_FMM.model_gen(C, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+#       B = SCP.model_gen(theta, D, epsilon);
+        B1 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B2 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        B3 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
 
         B = [B1, B2, B3];
     elseif (epsilon < 0)
         D = rank_distance_matrix(Euclidean_matrix(coordinates));
-        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(C, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon, (t2-t1)/1.0e9/optim.f_calls;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_celegans(A, C, coords, option="degree", filename="output")
+function tradeoff_celegans(delta1_array, delta2_array)
+    A,B,theta0,D,coordinates,epsilon,t = test_celegans(1.0; ratio=1.00, max_num_step=100, opt_epsilon=true, delta_1=0.0, delta_2=100.0);
+
+    delta1_time = [];
+    delta1_rmse = [];
+    for delta1 in delta1_array
+        A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=0.00, max_num_step=100, opt_epsilon=true, delta_1=delta1);
+        push!(delta1_time, t);
+        push!(delta1_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        println((sum((theta-theta0).^2)/length(theta0))^0.5)
+    end
+
+    delta2_time = [];
+    delta2_rmse = [];
+    for delta2 in delta2_array
+        A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=0.00, max_num_step=100, opt_epsilon=true, delta_2=delta2);
+        push!(delta2_time, t);
+        push!(delta2_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+    end
+
+    return delta1_time, delta1_rmse, delta2_time, delta2_rmse;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function plot_celegans(A, theta, coords, option="degree", filename="output")
     h = Plots.plot(size=(450,350), title="Celegans",
                              xlabel=L"x",
                              ylabel=L"y",
                              framestyle=:box);
 
-    plot_core_periphery(h, A, C, coords, option;
+    plot_core_periphery(h, A, theta, coords, option;
                         plot_links=true,
                         distance="Euclidean")
 
@@ -1196,7 +1355,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function intro_celegans(A, C, coords, option="community", filename="output")
+function intro_celegans(A, theta, coords, option="community", filename="output")
     h = Plots.plot(size=(800,550), title="Celegans",
                              xlabel=L"x",
                              ylabel=L"y",
@@ -1217,18 +1376,18 @@ function intro_celegans(A, C, coords, option="community", filename="output")
         color = [color_set[com[i]] for i in 1:n];
     elseif (option == "core_periphery")
         #--------------------------------------------------------
-        vtx_sorted = sortperm(C, rev=true);
-        num_core = Int64(ceil(0.1335*n));
-        Cmax = C[vtx_sorted[1]];
-        Cmid = C[vtx_sorted[num_core]];
-        Cmin = C[vtx_sorted[end]];
+        vtx_sorted = sortperm(theta, rev=true);
+        num_core = Int64(ceil(0.10*n));
+        theta_max = theta[vtx_sorted[1]];
+        theta_mid = theta[vtx_sorted[num_core]];
+        theta_min = theta[vtx_sorted[end]];
         #--------------------------------------------------------
         Rmap = Colors.linspace(colorant"#ffe6e6", colorant"#ff0000", 100);
         Gmap = Colors.linspace(colorant"#008000", colorant"#e6ffe6", 100);
         Bmap = Colors.linspace(colorant"#0000ff", colorant"#e6e6ff", 100);
         #--------------------------------------------------------
-        color = [(i in vtx_sorted[1:num_core] ? Rmap[Int64(ceil((C[i]-Cmid)/(Cmax-Cmid) * 99)) + 1]
-                                              : Bmap[Int64(ceil((C[i]-Cmin)/(Cmid-Cmin) * 99)) + 1]) for i in 1:n];
+        color = [(i in vtx_sorted[1:num_core] ? Rmap[Int64(ceil((theta[i]-theta_mid)/(theta_max-theta_mid) * 99)) + 1]
+                                              : Bmap[Int64(ceil((theta[i]-theta_min)/(theta_mid-theta_min) * 99)) + 1]) for i in 1:n];
         #--------------------------------------------------------
     else
         error("option not supported.");
@@ -1262,7 +1421,7 @@ function intro_celegans(A, C, coords, option="community", filename="output")
     if (option == "community")
         order = [i for j in 1:10 for i in shuffle(1:n) if com[i] == j];
     elseif (option == "core_periphery")
-        order = sortperm(C, rev=true);
+        order = sortperm(theta, rev=true);
     end
 
     #----------------------------------------------------------------
@@ -1305,16 +1464,16 @@ function Karate(thres=1.0e-6, max_num_step=100)
 
     #--------------------------------
     D = ones(A)-eye(A);
-    C, epsilon = StochasticCP.model_fit(A, D, 1; opt=Dict("thres"=>1.0e-6, "max_num_step"=>100));
-    B = StochasticCP.model_gen(C, D, 1);
+    theta, epsilon = SCP.model_fit(A, D, 1; opt=Dict("thres"=>1.0e-6, "max_num_step"=>100));
+    B = SCP.model_gen(theta, D, 1);
     #--------------------------------
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function intro_Karate(A, C, coords, option="community", filename="output")
+function intro_Karate(A, theta, coords, option="community", filename="output")
     h = Plots.plot(size=(800,550), title="Karate",
                              xlabel=L"x",
                              ylabel=L"y",
@@ -1330,7 +1489,7 @@ function intro_Karate(A, C, coords, option="community", filename="output")
     if (option == "community")
         color = [(i in com[2] ? colorant"#FF3333" : colorant"#33FFFF") for i in 1:n];
     elseif (option == "core_periphery")
-        color = [(i in sortperm(C, rev=true)[1:Int64(ceil(0.55*n))] ? colorant"#FF3333" : colorant"#33FFFF") for i in 1:n];
+        color = [(i in sortperm(theta, rev=true)[1:Int64(ceil(0.55*n))] ? colorant"#FF3333" : colorant"#33FFFF") for i in 1:n];
     else
         error("option not supported.");
     end
@@ -1365,7 +1524,7 @@ function intro_Karate(A, C, coords, option="community", filename="output")
     if (option == "community")
         order = vcat(vec(com[2]), vec(com[1]));
     elseif (option == "core_periphery")
-        order = sortperm(C, rev=true);
+        order = sortperm(theta, rev=true);
     end
 
     #----------------------------------------------------------------
@@ -1384,7 +1543,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
     #--------------------------------
     # load facebook100 data
     #--------------------------------
@@ -1403,35 +1562,38 @@ function test_facebook(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000)
     opt["ratio"] = ratio;
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
+    opt["opt_epsilon"] = opt_epsilon;
+    opt["delta_1"] = 2.0;
+    opt["delta_2"] = 0.2;
 
     #--------------------------------
     if (epsilon > 0)
         D = Hamming_matrix(coordinates);
-        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        # C, epsilon = StochasticCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        # C, epsilon = StochasticCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
+        # theta, epsilon = SCP_FMM.model_fit(A, coords, Hamming_CoM2, Hamming(), epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     elseif (epsilon < 0)
         D = rank_distance_matrix(Hamming_matrix(coordinates));
-        C, epsilon = StochasticCP.model_fit(A, D, -epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, -epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
     else
         D = ones(A)-eye(A);
-        C, epsilon = StochasticCP.model_fit(A, D, 1; opt=opt);
-        B = StochasticCP.model_gen(C, D, 1);
+        theta, epsilon = SCP.model_fit(A, D, 1; opt=opt);
+        B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, C, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon;
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_facebook(A, C, coords, option="degree", filename="output")
+function plot_facebook(A, theta, coords, option="degree", filename="output")
     h = Plots.plot(size=(600,600), title="Facebook",
                              xlabel=L"status",
                              ylabel=L"year");
 
-    plot_core_periphery(h, A, C, [[(coord[2] >=    0 ? coord[2] :    0) + (rand()-0.5)*0.3,
+    plot_core_periphery(h, A, theta, [[(coord[2] >=    0 ? coord[2] :    0) + (rand()-0.5)*0.3,
                                    (coord[7] >= 1999 ? coord[7] : 1999) + (rand()-0.5)*0.3] for coord in coords], option;
                         plot_links=true,
                         distance="Euclidean")
@@ -1468,9 +1630,9 @@ function plot_algo(sigma, num_vertices)
 
     n = size(coords,1);
 
-    C = ones(n) * (-4.0) + rand(n)*1.2;
+    theta = ones(n) * (-4.0) + rand(n)*1.2;
     D = Euclidean_matrix(coords);
-    A = StochasticCP.model_gen(C, D, 2);
+    A = SCP.model_gen(theta, D, 2);
 
     #------------------------------------------------------------
     if (length(coords[1]) == 2)
@@ -1488,16 +1650,16 @@ function plot_algo(sigma, num_vertices)
                                  legend=false,
                                  color="black",
                                  linewidth=2.0,
-                                 linestyle=:dash,
+                                 linestyle=:dot,
                                  alpha=0.5);
                     else
                         Plots.plot!(h, [coords[i][1], coords[j][1]],
                                  [coords[i][2], coords[j][2]],
                                  legend=false,
-                                 color="black",
+                                 color="gray",
                                  linewidth=0.5,
                                  linestyle=:solid,
-                                 alpha=0.15);
+                                 alpha=0.3);
                     end
                 end
                 #------------------------------------------------
@@ -1506,7 +1668,7 @@ function plot_algo(sigma, num_vertices)
         #--------------------------------------------------------
     end
     #------------------------------------------------------------
-    Plots.scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=C*5+23, c=colors, alpha=1.00);
+    Plots.scatter!(h, [coord[1] for coord in coords], [coord[2] for coord in coords], ms=theta*5+23, c=colors, alpha=1.00);
     #----------------------------------------------------------------
 
     Plots.savefig(h, "results/algo_network.svg");
@@ -1516,10 +1678,10 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
+function check(A, theta, D, coordinates, metric, CoM2, epsilon, ratio)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
-    dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(C));
+    dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(theta));
 
     #-----------------------------------------------------------------------------
     # \sum_{ij in E} -log_Dij
@@ -1537,19 +1699,19 @@ function check(A, C, D, coordinates, metric, CoM2, epsilon, ratio)
     end
     #-----------------------------------------------------------------------------
 
-    omega_nev = StochasticCP.omega(A, C, D, epsilon);
-    omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE);
+    omega_nev = SCP.omega(A, theta, D, epsilon);
+    omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
 
-    epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1));
-    srd_nev = StochasticCP.sum_rho_logD(C,D,epsilon);
-    epd_fmm, srd_fmm, fmm_tree = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+    epd_nev = vec(sum(SCP.probability_matrix(theta, D, epsilon), 1));
+    srd_nev = SCP.sum_rho_logD(theta,D,epsilon);
+    epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
 
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
 
     order = sortperm(vec(sum(A,1)), rev=false);
 
-    h = Plots.plot(size=(270,260), title="",
+    h = Plots.plot(size=(250,240), title="",
                              xlabel="vertex indices",
                              ylabel="expected degrees",
                              xlim=(1,277),
@@ -1569,8 +1731,8 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function plot_cs_correlation(C_nev, C_fmm)
-    h = Plots.plot(size=(270,260), title="",
+function plot_cs_correlation(theta_nev, theta_fmm)
+    h = Plots.plot(size=(250,240), title="",
                              xlabel="core scores (naive)",
                              ylabel="core scores (FMM)",
                              xlim=(-5.35,0.35),
@@ -1580,7 +1742,7 @@ function plot_cs_correlation(C_nev, C_fmm)
                              legend=:topleft);
 
     Plots.plot!(h, -5.35:0.05:0.35, -5.35:0.05:0.35, color="red", label="ideal");
-    Plots.scatter!(h, C_nev, C_fmm, label="experiment", color="blue", markerstrokewidth=0.3);
+    Plots.scatter!(h, theta_nev, theta_fmm, label="experiment", color="blue", markerstrokewidth=0.3);
 
     Plots.savefig(h, "results/cs_correlation.svg");
 
@@ -1596,7 +1758,7 @@ function timeit(n, metric, CoM2, epsilon)
     bt = BallTree(coords, metric, leafsize=1);
     #------------------------------------------------------------
 
-    CC = Dict(100 => -2.25, 1000 => -3.77, 10000 => -5.13, 100000 => -6.43, 1000000 => -7.69);
+    TT = Dict(100 => -2.25, 1000 => -3.77, 10000 => -5.13, 100000 => -6.43, 1000000 => -7.69);
 
 #   #------------------------------------------------------------
 #   dmean = sqrt(3.0)/3.0;
@@ -1611,9 +1773,9 @@ function timeit(n, metric, CoM2, epsilon)
 #   #------------------------------------------------------------
 #   C_p = nlsolve(f!,[0.0]).zero[1];
 #   #------------------------------------------------------------
-    C = ones(n) * CC[n];
+    theta = ones(n) * TT[n];
     #------------------------------------------------------------
-    C[1:Int64(ceil(0.05*n))] += 1.0;
+    theta[1:Int64(ceil(0.05*n))] += 1.0;
     #------------------------------------------------------------
 
     if (n <= 1.0e4)
@@ -1628,15 +1790,15 @@ function timeit(n, metric, CoM2, epsilon)
         #------------------------------------------------------------
         D = D + D';
         #------------------------------------------------------------
-        @time [B_nev = StochasticCP.model_gen(C, D, epsilon)];
-        @time [omega_nev = StochasticCP.omega(B_nev, C, D, epsilon)];
-        @time [epd_nev = vec(sum(StochasticCP.probability_matrix(C, D, epsilon), 1)), srd = StochasticCP.sum_rho_logD(C,D,epsilon)];
+        @time [B_nev = SCP.model_gen(theta, D, epsilon)];
+        @time [omega_nev = SCP.omega(B_nev, theta, D, epsilon)];
+        @time [epd_nev = vec(sum(SCP.probability_matrix(theta, D, epsilon), 1)), srd = SCP.sum_rho_logD(theta,D,epsilon)];
         println(countnz(B_nev)/n);
     end
 
-    @time [B_fmm = StochasticCP_FMM.model_gen(C, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0))];
-    @time [omega_fmm = StochasticCP_FMM.omega!(C, coords, CoM2, Dict(), epsilon, bt, 0.0, B_fmm, 0.0)];
-    @time [(epd_fmm, srd_fmm, fmm_tree) = StochasticCP_FMM.epd_and_srd!(C, coords, CoM2, Dict(), epsilon, bt, 0.0)];
+    @time [B_fmm = SCP_FMM.model_gen(theta, coords, CoM2, metric, epsilon; opt = Dict("ratio"=>0.0, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, Dict(), epsilon, bt, B_fmm, 0.0, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
+    @time [(epd_fmm, srd_fmm, fmm_tree) = SCP_FMM.epd_and_srd!(theta, coords, CoM2, Dict(), epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2))];
     println(countnz(B_fmm)/n);
 end
 #----------------------------------------------------------------
@@ -1655,38 +1817,38 @@ function plot_timings()
     fmm_deriv = [0.000862, 0.014218,  0.224220,    2.639909,     26.322895];
     #------------------------------------------------------------
 
-    h = Plots.plot(size=(570,450), title="Timings", xlabel="number of vertices",
-                                              ylabel="time per function call (sec)",
-                                              xlim=(10^(+1.7), 10^(+6.3)),
-                                              ylim=(10^(-3.7), 10^(+2.7)),
-                                              xscale=:log10,
-                                              yscale=:log10,
-                                              framestyle=:box,
-                                              grid="on");
+    h = Plots.plot(size=(330,270), title="Timings", xlabel="number of vertices",
+                                   ylabel="time per function call (sec)",
+                                   xlim=(10^(+1.7), 10^(+6.3)),
+                                   ylim=(10^(-3.7), 10^(+2.7)),
+                                   xscale=:log10,
+                                   yscale=:log10,
+                                   framestyle=:box,
+                                   grid="on");
 
     exp_omega = (size .* log.(size))    * (fmm_omega[1] / (size[1] * log(size[1])  ));
     exp_deriv = (size .* log.(size))    * (fmm_deriv[1] / (size[1] * log(size[1])  ));
     exp_gener = (size .* log.(size).^2) * (fmm_gener[1] / (size[1] * log(size[1])^2));
 
-    Plots.scatter!(h, size, fmm_omega, label="objective function", color="red", ms=8);
+    Plots.scatter!(h, size, fmm_omega, label="objective function", color="red", ms=6.5, markerstrokewidth=0.5);
     Plots.plot!(h, size, exp_omega, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="red", linestyle=:dash, linewidth=2.0);
-    Plots.scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=8);
+    Plots.scatter!(h, size, fmm_deriv, label="derivatives", color="blue", ms=6.5, markerstrokewidth=0.5);
     Plots.plot!(h, size, exp_deriv, label=L"\mathcal{O}\left(|V| \cdot \log |V|\right)", color="blue", linestyle=:dash, linewidth=2.0);
-    Plots.scatter!(h, size, fmm_gener, label="generate network", color="green", ms=8);
+    Plots.scatter!(h, size, fmm_gener, label="generate network", color="green", ms=6.5, markerstrokewidth=0.5);
     Plots.plot!(h, size, exp_gener, label=L"\mathcal{O}\left(|V| \cdot (\log |V|)^2\right)", color="green", linestyle=:dash, linewidth=2.0);
 
-    Plots.scatter!(h, size, fmm_omega, label="", color="red",   ms=8);
-    Plots.scatter!(h, size, fmm_deriv, label="", color="blue",  ms=8);
-    Plots.scatter!(h, size, fmm_gener, label="", color="green", ms=8);
+    Plots.scatter!(h, size, fmm_omega, label="", color="red",   ms=6.5, markerstrokewidth=0.5);
+    Plots.scatter!(h, size, fmm_deriv, label="", color="blue",  ms=6.5, markerstrokewidth=0.5);
+    Plots.scatter!(h, size, fmm_gener, label="", color="green", ms=6.5, markerstrokewidth=0.5);
 
-    Plots.savefig(h, "results/fmm_timings.pdf");
+    Plots.savefig(h, "results/fmm_timings.svg");
 
     return h
 end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num_step=1000)
+function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
         #--------------------------------------------------------
         dis(i,j) = min(max(i,j) - min(i,j), min(i,j)+n - max(i,j));
         rd(i) = mod(i-1+n,n) + 1;
@@ -1733,11 +1895,14 @@ function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num
         opt["ratio"] = ratio;
         opt["thres"] = thres;
         opt["max_num_step"] = max_num_step;
+        opt["opt_epsilon"] = opt_epsilon;
+        opt["delta_1"] = 2.0;
+        opt["delta_2"] = 0.2;
 
-        C, epsilon = StochasticCP.model_fit(A, D, epsilon; opt=opt);
-        B = StochasticCP.model_gen(C, D, epsilon);
+        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+        B = SCP.model_gen(theta, D, epsilon);
         #--------------------------------------------------------
 
-        return A, B, C, epsilon
+        return A, B, theta, epsilon
 end
 #----------------------------------------------------------------

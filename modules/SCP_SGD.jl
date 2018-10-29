@@ -1,5 +1,5 @@
 #---------------------------------------------------------------------------------
-module StochasticCP_SGD
+module SCP_SGD
     using StatsBase
 
     export model_fit, model_gen

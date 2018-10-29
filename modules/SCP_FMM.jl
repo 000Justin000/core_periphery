@@ -1,10 +1,9 @@
 #---------------------------------------------------------------------------------
-module StochasticCP_FMM
+module SCP_FMM
     using StatsBase;
     using Distances;
     using NearestNeighbors;
     using Optim;
-#   using Plots; pyplot();
 
     export model_fit, model_gen
 
@@ -83,7 +82,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the interaction between two nodes
     #-----------------------------------------------------------------------------
-    function accumulate_i2!(cmp, idx_1, idx_2, bt, epsilon)
+    function accumulate_i2!(cmp, idx_1, idx_2, bt, epsilon, opt)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
@@ -95,7 +94,7 @@ module StochasticCP_FMM
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                 cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
                                   -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
@@ -103,11 +102,11 @@ module StochasticCP_FMM
                                   -(1/4) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^4;
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
-                accumulate_i2!(cmp, idx_1, idx_2*2,   bt, epsilon);
-                accumulate_i2!(cmp, idx_1, idx_2*2+1, bt, epsilon);
+                accumulate_i2!(cmp, idx_1, idx_2*2,   bt, epsilon, opt);
+                accumulate_i2!(cmp, idx_1, idx_2*2+1, bt, epsilon, opt);
             else
-                accumulate_i2!(cmp, idx_1*2,   idx_2, bt, epsilon);
-                accumulate_i2!(cmp, idx_1*2+1, idx_2, bt, epsilon);
+                accumulate_i2!(cmp, idx_1*2,   idx_2, bt, epsilon, opt);
+                accumulate_i2!(cmp, idx_1*2+1, idx_2, bt, epsilon, opt);
             end
         end
     end
@@ -116,11 +115,11 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # recursively compute the interaction at each level of the tree
     #-----------------------------------------------------------------------------
-    function accumulate_i!(cmp, idx, bt, epsilon)
+    function accumulate_i!(cmp, idx, bt, epsilon, opt)
         if (idx <= bt.tree_data.n_internal_nodes)
-            accumulate_i2!(cmp, idx*2, idx*2+1, bt, epsilon)
-            accumulate_i!(cmp,  idx*2,          bt, epsilon)
-            accumulate_i!(cmp,  idx*2+1,        bt, epsilon)
+            accumulate_i2!(cmp, idx*2, idx*2+1, bt, epsilon, opt)
+            accumulate_i!(cmp,  idx*2,          bt, epsilon, opt)
+            accumulate_i!(cmp,  idx*2+1,        bt, epsilon, opt)
         end
     end
     #-----------------------------------------------------------------------------
@@ -128,10 +127,10 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function omega!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio, A, sum_logD_inE)
+    function omega!(theta::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt)
         # println(" - da"); # debug
 
-        n = length(C);
+        n = length(theta);
 
         #-------------------------------------------------------------------------
         omega = 0.0;
@@ -141,7 +140,7 @@ module StochasticCP_FMM
         for (i,j) in zip(I,J)
             #---------------------------------------------------------------------
             if (i < j)
-                omega += C[i] + C[j];
+                omega += theta[i] + theta[j];
             end
             #---------------------------------------------------------------------
         end
@@ -150,7 +149,7 @@ module StochasticCP_FMM
         #-----------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
-        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))];
+        core_id = sortperm(theta, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
         #-------------------------------------------------------------------------
         # now compute the c->c and c->p
         #-------------------------------------------------------------------------
@@ -165,7 +164,7 @@ module StochasticCP_FMM
             end
 
             #---------------------------------------------------------------------
-            cid2all = log.( (exp.(C[cid] .+ C) .+ dist[cid].^epsilon) ./ (dist[cid].^epsilon) );
+            cid2all = log.( (exp.(theta[cid] .+ theta) .+ dist[cid].^epsilon) ./ (dist[cid].^epsilon) );
             cid2all[cid] = 0;     omega -= 0.5 * sum(cid2all);     # c->c and c->p
             cid2all[core_id] = 0; omega -= 0.5 * sum(cid2all);              # c->p
             #---------------------------------------------------------------------
@@ -192,7 +191,7 @@ module StochasticCP_FMM
         # data structure that stores the node's CoM, mass, and potential
         # corresponding to nodes in BallTree data structure
         #-------------------------------------------------------------------------
-        ms = exp.(C); ms[core_id] = 0;
+        ms = exp.(theta); ms[core_id] = 0;
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -200,7 +199,7 @@ module StochasticCP_FMM
         fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        accumulate_i!(fmm_tree, 1, bt, epsilon);
+        accumulate_i!(fmm_tree, 1, bt, epsilon, opt);
         #-------------------------------------------------------------------------
         omega -= fmm_tree[end].pot_1;
         #-------------------------------------------------------------------------
@@ -212,7 +211,7 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the potential between two nodes
     #-----------------------------------------------------------------------------
-    function fill_p2!(cmp, idx_1, idx_2, bt, epsilon)
+    function fill_p2!(cmp, idx_1, idx_2, bt, epsilon, opt)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
@@ -227,7 +226,7 @@ module StochasticCP_FMM
                 cmp[idx_1].pot_2 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 cmp[idx_2].pot_2 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[idx_1].pot_1 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 cmp[idx_2].pot_1 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
@@ -235,11 +234,11 @@ module StochasticCP_FMM
                 cmp[idx_2].pot_2 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon) * log(distance);
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
-                fill_p2!(cmp, idx_1, idx_2*2,   bt, epsilon);
-                fill_p2!(cmp, idx_1, idx_2*2+1, bt, epsilon);
+                fill_p2!(cmp, idx_1, idx_2*2,   bt, epsilon, opt);
+                fill_p2!(cmp, idx_1, idx_2*2+1, bt, epsilon, opt);
             else
-                fill_p2!(cmp, idx_1*2,   idx_2, bt, epsilon);
-                fill_p2!(cmp, idx_1*2+1, idx_2, bt, epsilon);
+                fill_p2!(cmp, idx_1*2,   idx_2, bt, epsilon, opt);
+                fill_p2!(cmp, idx_1*2+1, idx_2, bt, epsilon, opt);
             end
         end
     end
@@ -248,11 +247,11 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # recursively compute the potential at each level of the tree
     #-----------------------------------------------------------------------------
-    function fill_p!(cmp, idx, bt, epsilon)
+    function fill_p!(cmp, idx, bt, epsilon, opt)
         if (idx <= bt.tree_data.n_internal_nodes)
-            fill_p2!(cmp, idx*2, idx*2+1, bt, epsilon)
-            fill_p!(cmp,  idx*2,          bt, epsilon)
-            fill_p!(cmp,  idx*2+1,        bt, epsilon)
+            fill_p2!(cmp, idx*2, idx*2+1, bt, epsilon, opt)
+            fill_p!(cmp,  idx*2,          bt, epsilon, opt)
+            fill_p!(cmp,  idx*2+1,        bt, epsilon, opt)
         end
     end
     #-----------------------------------------------------------------------------
@@ -276,8 +275,8 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # compute the expected degree of each node with fast multipole method
     #-----------------------------------------------------------------------------
-    function epd_and_srd!(C::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, ratio)
-        n = length(C);
+    function epd_and_srd!(theta::Array{Float64,1}, coords, CoM2, dist, epsilon, bt, opt)
+        n = length(theta);
 
         #-------------------------------------------------------------------------
         # "expected degree" and "sum_rho_logD"
@@ -285,7 +284,7 @@ module StochasticCP_FMM
         epd = zeros(n);
         srd = 0.0;
         #-------------------------------------------------------------------------
-        core_id = sortperm(C, rev=true)[1:Int64(ceil(ratio * n))];
+        core_id = sortperm(theta, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
         #-------------------------------------------------------------------------
 
         #-------------------------------------------------------------------------
@@ -308,11 +307,11 @@ module StochasticCP_FMM
             end
 
             #---------------------------------------------------------------------
-            cid2all_1 = exp.(C[cid] .+ C) ./ (exp.(C[cid] .+ C) .+ dist[cid].^epsilon);
+            cid2all_1 = exp.(theta[cid] .+ theta) ./ (exp.(theta[cid] .+ theta) .+ dist[cid].^epsilon);
             cid2all_1[cid] = 0; epd += cid2all_1;
             epdc[cid] = sum(cid2all_1);                      # store c->c and c->p
             #---------------------------------------------------------------------
-            cid2all_2 = exp.(C[cid] .+ C) ./ (exp.(C[cid] .+ C) .+ dist[cid].^epsilon) .* log.(dist[cid]);
+            cid2all_2 = exp.(theta[cid] .+ theta) ./ (exp.(theta[cid] .+ theta) .+ dist[cid].^epsilon) .* log.(dist[cid]);
             cid2all_2[cid] = 0;     srd += sum(cid2all_2);         # c->c and c->p
             cid2all_2[core_id] = 0; srd += sum(cid2all_2);         # p->c
             #---------------------------------------------------------------------
@@ -338,7 +337,7 @@ module StochasticCP_FMM
         # data structure that stores the node's CoM, mass, and potential
         # corresponding to nodes in BallTree data structure
         #-------------------------------------------------------------------------
-        ms = exp.(C); ms[core_id] = 0;
+        ms = exp.(theta); ms[core_id] = 0;
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
         fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
@@ -346,7 +345,7 @@ module StochasticCP_FMM
 
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        fill_p!(fmm_tree, 1, bt, epsilon);
+        fill_p!(fmm_tree, 1, bt, epsilon, opt);
         accumulate_p!(fmm_tree, 1, bt);
         #-------------------------------------------------------------------------
         epd += [fmm_tree[rsid[orid[idx]]].pot_1 for idx in 1:nl] .* ms;
@@ -372,15 +371,15 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # gradient of objective function
     #-----------------------------------------------------------------------------
-    function negative_gradient_omega!(C, coords, CoM2, dist, epsilon, bt, ratio, d, sum_logD_inE, storage, opt_epsilon)
-        # print(maximum(C), "    ", minimum(C), "    ", mean(C), "    di"); # debug
+    function negative_gradient_omega!(theta, coords, CoM2, dist, epsilon, bt, d, sum_logD_inE, storage, opt)
+        # print(maximum(theta), "    ", minimum(theta), "    ", mean(theta), "    di"); # debug
 
-        epd, srd, fmm_tree = epd_and_srd!(C, coords, CoM2, dist, epsilon, bt, ratio);
+        epd, srd, fmm_tree = epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, opt);
 
         G = d - epd;
 
         storage[1:end-1] = -G;
-        storage[end] = opt_epsilon ? -(srd - sum_logD_inE) : 0.0;
+        storage[end] = opt["opt_epsilon"] ? -(srd - sum_logD_inE) : 0.0;
     end
     #-----------------------------------------------------------------------------
 
@@ -393,75 +392,74 @@ module StochasticCP_FMM
                        CoM2,
                        metric = Euclidean(),
                        epsilon = 1;
-                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0, "opt_epsilon"=>true))
+                       opt = Dict("thres"=>1.0e-6, "max_num_step"=>10000, "ratio"=>1.0, "opt_epsilon"=>true, "delta_1"=>2.0, "delta_2"=>0.2),
+                       theta0 = nothing)
         @assert issymmetric(A);
+
+        #-----------------------------------------------------------------------------
         A = spones(A);
         n = size(A,1);
         d = vec(sum(A,2));
         order = sortperm(d, rev=true);
-        C = d / maximum(d) * 1.0e-6;
+        #-----------------------------------------------------------------------------
+        if (theta0 == nothing)
+            theta = d / maximum(d) * 1.0e-6;
+        else
+            theta = theta0;
+        end
+        #-----------------------------------------------------------------------------
 
         #-----------------------------------------------------------------------------
         # \sum_{ij in E} -log_Dij
         #-----------------------------------------------------------------------------
         I,J,V = findnz(A);
         #-----------------------------------------------------------------------------
-        sum_logD_inE = 0.0
+        sum_logD_inE = 0.0;
         #-----------------------------------------------------------------------------
         for (i,j) in zip(I,J)
             #---------------------------------------------------------------------
             if (i < j)
-                sum_logD_inE += log(evaluate(metric, coords[:,i], coords[:,j]))
+                sum_logD_inE += log(evaluate(metric, coords[:,i], coords[:,j]));
             end
             #---------------------------------------------------------------------
         end
         #-----------------------------------------------------------------------------
         # println("sum_logD_inE: ", sum_logD_inE);
 
-        dist = Dict{Int64,Array{Float64,1}}()
+        dist = Dict{Int64,Array{Float64,1}}();
         bt = BallTree(coords, metric, leafsize=1);
 
-        f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], A, sum_logD_inE);
-        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, opt["ratio"], d, sum_logD_inE, storage, opt["opt_epsilon"])
+        f!(x)          = -omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, A, sum_logD_inE, opt);
+        g!(storage, x) =  negative_gradient_omega!(x[1:end-1], coords, CoM2, dist, x[end], bt, d, sum_logD_inE, storage, opt)
 
         #-----------------------------------------------------------------------------
         println("starting optimization:")
         #-----------------------------------------------------------------------------
-        # lo = -ones(length(C)+1) * Inf; lo[end] = 0;
-        # hi =  ones(length(C)+1) * Inf;
-        #
-        # od = OnceDifferentiable(f!,g!,vcat(C,[epsilon]));
-        # optim = optimize(od, vcat(C,[epsilon]), lo, hi, Fminbox{LBFGS}(), show_trace = true,
-        #                                                                   show_every = 1,
-        #                                                                   allow_f_increases = true,
-        #                                                                   iterations = opt["max_num_step"]);
-        #-----------------------------------------------------------------------------
-        precond = speye(length(C)+1) * length(C); precond[end,end] *= length(C);
-        optim = optimize(f!, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
+        precond = speye(length(theta)+1) * length(theta); precond[end,end] *= length(theta);
+        optim = optimize(f!, g!, vcat(theta,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = 1e-6,
                                                                                       iterations = opt["max_num_step"],
                                                                                       show_trace = true,
                                                                                       show_every = 1,
-                                                                                      allow_f_increases = false));
+                                                                                      allow_f_increases = true));
         #-----------------------------------------------------------------------------
         println(optim);
         #-----------------------------------------------------------------------------
 
-
-        C = optim.minimizer[1:end-1];
+        theta = optim.minimizer[1:end-1];
         epsilon = optim.minimizer[end];
 
         println(epsilon);
-        println(omega!(C, coords, CoM2, dist, epsilon, bt, opt["ratio"], A, sum_logD_inE));
+        println(omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt));
 
         @assert epsilon > 0;
-        return C, epsilon;
+        return theta, epsilon, optim;
     end
     #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
     # generate edges between points within two hyper_spheres
     #-----------------------------------------------------------------------------
-    function generate_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, I,J,V)
+    function generate_e2!(cmp, idx_1, idx_2, bt, epsilon, roid, srid, I,J,V, opt)
         n_node = bt.tree_data.n_internal_nodes + bt.tree_data.n_leafs;
         if ((idx_1 <= n_node) && (idx_2 <= n_node))
             #-----------------------------------------------------------------
@@ -478,11 +476,12 @@ module StochasticCP_FMM
                 end
 
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, 2)*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < 0.2))
+            elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 nei = Int64(floor(nef) + (rand() < (nef - floor(nef)) ? 1 : 0));
-                # generate ne edges between this two group of nodes
+
+                # generate nei edges between this two group of nodes
                 grp_1 = subtree_range(idx_1,n_node);
                 grp_2 = subtree_range(idx_2,n_node);
 
@@ -551,11 +550,11 @@ module StochasticCP_FMM
 
                 cmp[end].m += 1;
             elseif (sp1r <= sp2r)
-                generate_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, I,J,V);
-                generate_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, I,J,V);
+                generate_e2!(cmp, idx_1, idx_2*2,   bt, epsilon, roid, srid, I,J,V, opt);
+                generate_e2!(cmp, idx_1, idx_2*2+1, bt, epsilon, roid, srid, I,J,V, opt);
             else
-                generate_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, I,J,V);
-                generate_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, I,J,V);
+                generate_e2!(cmp, idx_1*2,   idx_2, bt, epsilon, roid, srid, I,J,V, opt);
+                generate_e2!(cmp, idx_1*2+1, idx_2, bt, epsilon, roid, srid, I,J,V, opt);
             end
         end
     end
@@ -564,11 +563,11 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # recursively generate edges at each level of the tree
     #-----------------------------------------------------------------------------
-    function generate_e!(cmp, idx, bt, epsilon, roid, srid, I,J,V)
+    function generate_e!(cmp, idx, bt, epsilon, roid, srid, I,J,V, opt)
         if (idx <= bt.tree_data.n_internal_nodes)
-            generate_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, I,J,V);
-            generate_e!(cmp,  idx*2,          bt, epsilon, roid, srid, I,J,V);
-            generate_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, I,J,V);
+            generate_e2!(cmp, idx*2, idx*2+1, bt, epsilon, roid, srid, I,J,V, opt);
+            generate_e!(cmp,  idx*2,          bt, epsilon, roid, srid, I,J,V, opt);
+            generate_e!(cmp,  idx*2+1,        bt, epsilon, roid, srid, I,J,V, opt);
         end
     end
     #-----------------------------------------------------------------------------
@@ -576,24 +575,24 @@ module StochasticCP_FMM
     #-----------------------------------------------------------------------------
     # given the core score and distance matrix, compute the adjacency matrix
     #-----------------------------------------------------------------------------
-    function model_gen(C::Array{Float64,1},
+    function model_gen(theta::Array{Float64,1},
                        coords::Array{Float64,2},
                        CoM2,
                        metric = Euclidean(),
                        epsilon = 1;
-                       opt = Dict("ratio"=>1.0))
+                       opt = Dict("ratio"=>1.0, "delta_1"=>2.0, "delta_2"=>0.2))
 
         I = Vector{Int64}();
         J = Vector{Int64}();
         V = Vector{Float64}();
 
-        n = length(C);
+        n = length(theta);
 
         dist = Dict{Int64,Array{Float64,1}}();
         bt = BallTree(coords, metric, leafsize=1);
 
         #-------------------------------------------------------------------------
-        core_id  = sortperm(C, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
+        core_id  = sortperm(theta, rev=true)[1:Int64(ceil(opt["ratio"] * n))];
         core_set = Set(core_id);
         #-------------------------------------------------------------------------
         # now compute the c->c and c->p
@@ -612,7 +611,7 @@ module StochasticCP_FMM
 
             for i in 1:n
                 if (!(i in core_set && i <= cid))
-                    if (rand() < exp(C[cid]+C[i])/(exp(C[cid]+C[i]) + dist[cid][i]^epsilon))
+                    if (rand() < exp(theta[cid]+theta[i])/(exp(theta[cid]+theta[i]) + dist[cid][i]^epsilon))
                         push!(I, cid);
                         push!(J, i);
                         push!(V, 1.0);
@@ -639,7 +638,7 @@ module StochasticCP_FMM
         # data structure that stores the node's CoM, mass, and potential
         # corresponding to nodes in BallTree data structure
         #-------------------------------------------------------------------------
-        ms = exp.(C); ms[core_id] = 0;
+        ms = exp.(theta); ms[core_id] = 0;
         #-------------------------------------------------------------------------
         fmm_tree = Array{Particle,1}(ni+nl+1);
         fmm_tree[end] = Particle([0.0,0.0], 0.0, 0.0, 0.0, 0.0);
@@ -647,7 +646,7 @@ module StochasticCP_FMM
 
         #-------------------------------------------------------------------------
         fill_cm!(fmm_tree, 1, bt, ms, roid, srid, CoM2);
-        generate_e!(fmm_tree, 1, bt, epsilon, roid, srid, I,J,V);
+        generate_e!(fmm_tree, 1, bt, epsilon, roid, srid, I,J,V, opt);
         #-------------------------------------------------------------------------
         # println(sum(A));
         #-------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 #---------------------------------------------------------------------------------
-module StochasticCP
-using Optim
-#   using Plots; pyplot();
+module SCP
+    using Optim
 
     export model_fit, model_gen
 
@@ -9,10 +8,10 @@ using Optim
     # compute the probability matirx rho_{ij} denote probability for a link to
     # exist between node_i and node_j
     #-----------------------------------------------------------------------------
-    function probability_matrix(C, D, epsilon)
+    function probability_matrix(theta, D, epsilon)
         @assert issymmetric(D);
 
-        rho = exp.(C .+ C') ./ (exp.(C .+ C') .+ D.^epsilon);
+        rho = exp.(theta .+ theta') ./ (exp.(theta .+ theta') .+ D.^epsilon);
         rho = rho - diagm(diag(rho));
 
         @assert issymmetric(rho);
@@ -26,12 +25,12 @@ using Optim
     #-----------------------------------------------------------------------------
     # omega = \sum_{i<j} A_{ij} \log(rho_{ij}) + (1-A_{ij}) \log(1-rho_{ij})
     #-----------------------------------------------------------------------------
-    function omega(A, C, D, epsilon)
+    function omega(A, theta, D, epsilon)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
         n = size(A,1);
-        rho = probability_matrix(C,D,epsilon)
+        rho = probability_matrix(theta,D,epsilon)
 
         omega = 0;
         for i in 1:n
@@ -48,12 +47,12 @@ using Optim
     #-----------------------------------------------------------------------------
     # gradient of objective function
     #-----------------------------------------------------------------------------
-    function negative_gradient_omega!(A, C, D, epsilon, sum_logD_inE, storage, opt_epsilon)
+    function negative_gradient_omega!(A, theta, D, epsilon, sum_logD_inE, storage, opt_epsilon)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
-        G = vec(sum(A-probability_matrix(C,D,epsilon), 2));
-        srd = sum_rho_logD(C,D,epsilon);
+        G = vec(sum(A-probability_matrix(theta,D,epsilon), 2));
+        srd = sum_rho_logD(theta,D,epsilon);
 
         storage[1:end-1] = -G;
         storage[end] = opt_epsilon ? -(srd - sum_logD_inE) : 0.0;
@@ -66,15 +65,22 @@ using Optim
     #---------------------------------------------------------------------------------------------
     # if epsilon is integer, then fix epsilon, otherwise optimize epsilon as well as core_score
     #---------------------------------------------------------------------------------------------
-    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6, "max_num_step"=>10000, "opt_epsilon"=>true))
+    function model_fit(A, D, epsilon; opt=Dict("thres"=>1.0e-6, "max_num_step"=>10000, "opt_epsilon"=>true), theta0=nothing)
         @assert issymmetric(A);
         @assert issymmetric(D);
 
+        #-----------------------------------------------------------------------------
         A = spones(A);
         n = size(A,1);
         d = vec(sum(A,2));
         order = sortperm(d, rev=true);
-        C = d / maximum(d) * 1.0e-6;
+        #-----------------------------------------------------------------------------
+        if (theta0 == nothing)
+            theta = d / maximum(d) * 1.0e-6;
+        else
+            theta = theta0;
+        end
+        #-----------------------------------------------------------------------------
 
         #-----------------------------------------------------------------------------
         # \sum_{ij in E} -log_Dij
@@ -98,8 +104,8 @@ using Optim
         #-----------------------------------------------------------------------------
         println("starting optimization:")
         #-----------------------------------------------------------------------------
-        precond = speye(length(C)+1); precond[end,end] = length(C);
-        optim = optimize(f, g!, vcat(C,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = opt["thres"],
+        precond = speye(length(theta)+1); precond[end,end] = length(theta);
+        optim = optimize(f, g!, vcat(theta,[epsilon]), LBFGS(P = precond), Optim.Options(g_tol = opt["thres"],
                                                                                      iterations = opt["max_num_step"],
                                                                                      show_trace = true,
                                                                                      show_every = 1,
@@ -108,26 +114,26 @@ using Optim
         println(optim);
         #-----------------------------------------------------------------------------
 
-        C = optim.minimizer[1:end-1];
+        theta = optim.minimizer[1:end-1];
         epsilon = optim.minimizer[end];
 
         println(epsilon);
 
-        println(omega(A,C,D,epsilon));
-        @assert epsilon > 0;
-        return C, epsilon;
+        println(omega(A,theta,D,epsilon));
+        @assert epsilon >= 0;
+        return theta, epsilon;
     end
     #-----------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------
     # compute the gradient with respect to the order of distance
     #-----------------------------------------------------------------------------
-    function sum_rho_logD(C, D, epsilon)
+    function sum_rho_logD(theta, D, epsilon)
         @assert issymmetric(D);
         @assert sum(abs.(diag(D))) == 0;
 
-        n = length(C);
-        rho = probability_matrix(C,D,epsilon);
+        n = length(theta);
+        rho = probability_matrix(theta,D,epsilon);
 
         #-----------------------------------------------------------------------------
         sum_rho_logD = 0.0;
@@ -141,7 +147,7 @@ using Optim
 #           if (i in 1:1)
 #               println(sum_rho_logD);
 #               println(D[i,1:5]);
-#               println(C[1:5]);
+#               println(theta[1:5]);
 #           end
         end
         #-----------------------------------------------------------------------------
@@ -153,10 +159,10 @@ using Optim
     #-----------------------------------------------------------------------------
     # given the core score and distance matrix, compute the adjacency matrix
     #-----------------------------------------------------------------------------
-    function model_gen(C, D, epsilon)
+    function model_gen(theta, D, epsilon)
         @assert issymmetric(D);
 
-        n = size(C,1);
+        n = size(theta,1);
 
         I = Vector{Int64}();
         J = Vector{Int64}();
@@ -164,7 +170,7 @@ using Optim
 
         for j in 1:n
             for i in j+1:n
-                if (rand() < exp(C[i]+C[j])/(exp(C[i]+C[j]) + D[i,j]^epsilon))
+                if (rand() < exp(theta[i]+theta[j])/(exp(theta[i]+theta[j]) + D[i,j]^epsilon))
                     push!(I,i)
                     push!(J,j)
                     push!(V,1.0)
