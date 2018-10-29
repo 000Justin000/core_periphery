@@ -1,6 +1,6 @@
 #---------------------------------------------------------------------------------
 module SCP
-using Optim
+    using Optim
 
     export model_fit, model_gen
 

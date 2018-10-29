@@ -440,7 +440,7 @@ module SCP_FMM
                                                                                       iterations = opt["max_num_step"],
                                                                                       show_trace = true,
                                                                                       show_every = 1,
-                                                                                      allow_f_increases = false));
+                                                                                      allow_f_increases = true));
         #-----------------------------------------------------------------------------
         println(optim);
         #-----------------------------------------------------------------------------
@@ -452,7 +452,7 @@ module SCP_FMM
         println(omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt));
 
         @assert epsilon > 0;
-        return theta, epsilon;
+        return theta, epsilon, optim;
     end
     #-----------------------------------------------------------------------------
 

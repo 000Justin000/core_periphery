@@ -592,7 +592,7 @@ end
 
 
 #----------------------------------------------------------------
-function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
+function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true, delta_1=2.0, delta_2=0.2)
     #--------------------------------
     # load airport data and location
     #--------------------------------
@@ -644,15 +644,18 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
-    opt["delta_1"] = 2.0;
-    opt["delta_2"] = 0.2;
+    opt["delta_1"] = delta_1;
+    opt["delta_2"] = delta_2;
 
     if (epsilon > 0)
         # D = Haversine_matrix(coordinates);
         # @time theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
         # B = SCP.model_gen(theta, D, epsilon);
         # theta, epsilon = SCP_SGD.model_fit(A, D, epsilon; opt=opt);
-        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        t1 = time_ns()
+        @time theta, epsilon, optim = SCP_FMM.model_fit(A, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
+        t2 = time_ns()
+
         B = SCP_FMM.model_gen(theta, coords, Haversine_CoM2, Haversine(6371e3), epsilon; opt=opt);
         D = Haversine_matrix(coordinates);
         # B = SCP.model_gen(theta, D, epsilon);
@@ -666,7 +669,43 @@ function test_openflight(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000,
         B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, theta, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon, (t2-t1)/1.0e9/optim.f_calls;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function tradeoff_openflight(delta1_array, delta2_array)
+    theta0 = MAT.matread("results/openflight_distanceopt.mat")["C"];
+
+    delta1_time = Vector{Float64}();
+    delta1_rmse = Vector{Float64}();
+    delta1_corr = Vector{Float64}();
+    delta1_thta = Vector{Vector{Float64}}();
+    delta1_epsl = Vector{Float64}();
+    for delta1 in delta1_array
+        A,B,theta,D,coordinates,epsilon,t = test_openflight(2.3; ratio=0.00, max_num_step=1000, opt_epsilon=true, delta_1=delta1);
+        push!(delta1_time, t);
+        push!(delta1_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        push!(delta1_corr, cor(theta,theta0));
+        push!(delta1_thta, theta);
+        push!(delta1_epsl, epsilon);
+    end
+
+    delta2_time = Vector{Float64}();
+    delta2_rmse = Vector{Float64}();
+    delta2_corr = Vector{Float64}();
+    delta2_thta = Vector{Vector{Float64}}();
+    delta2_epsl = Vector{Float64}();
+    for delta2 in delta2_array
+        A,B,theta,D,coordinates,epsilon,t = test_openflight(1.0; ratio=0.00, max_num_step=1000, opt_epsilon=true, delta_2=delta2);
+        push!(delta2_time, t);
+        push!(delta2_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        push!(delta2_corr, cor(theta,theta0));
+        push!(delta2_thta, theta);
+        push!(delta2_epsl, epsilon);
+    end
+
+    return delta1_time, delta1_rmse, delta1_corr, delta1_thta, delta1_epsl, delta2_time, delta2_rmse, delta2_corr, delta2_thta, delta2_epsl;
 end
 #----------------------------------------------------------------
 
@@ -1226,7 +1265,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
+function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true, delta_1=2.0, delta_2=0.2)
     #--------------------------------
     # load fungals data
     #--------------------------------
@@ -1243,14 +1282,16 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, o
     opt["thres"] = thres;
     opt["max_num_step"] = max_num_step;
     opt["opt_epsilon"] = opt_epsilon;
-    opt["delta_1"] = 2.0;
-    opt["delta_2"] = 0.2;
+    opt["delta_1"] = delta_1;
+    opt["delta_2"] = delta_2;
 
     #--------------------------------
     if (epsilon > 0)
         D = Euclidean_matrix(coordinates);
 #       theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
-        @time theta, epsilon = SCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        t1 = time_ns()
+        @time theta, epsilon, optim = SCP_FMM.model_fit(A, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
+        t2 = time_ns()
 
 #       B = SCP.model_gen(theta, D, epsilon);
         B1 = SCP_FMM.model_gen(theta, coords, Euclidean_CoM2, Euclidean(), epsilon; opt=opt);
@@ -1268,7 +1309,32 @@ function test_celegans(epsilon=-1; ratio=1.0, thres=1.0e-6, max_num_step=1000, o
         B = SCP.model_gen(theta, D, 1);
     end
 
-    return A, B, theta, D, coordinates, epsilon;
+    return A, B, theta, D, coordinates, epsilon, (t2-t1)/1.0e9/optim.f_calls;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function tradeoff_celegans(delta1_array, delta2_array)
+    A,B,theta0,D,coordinates,epsilon,t = test_celegans(1.0; ratio=1.00, max_num_step=100, opt_epsilon=true, delta_1=0.0, delta_2=100.0);
+
+    delta1_time = [];
+    delta1_rmse = [];
+    for delta1 in delta1_array
+        A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=0.00, max_num_step=100, opt_epsilon=true, delta_1=delta1);
+        push!(delta1_time, t);
+        push!(delta1_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        println((sum((theta-theta0).^2)/length(theta0))^0.5)
+    end
+
+    delta2_time = [];
+    delta2_rmse = [];
+    for delta2 in delta2_array
+        A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=0.00, max_num_step=100, opt_epsilon=true, delta_2=delta2);
+        push!(delta2_time, t);
+        push!(delta2_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+    end
+
+    return delta1_time, delta1_rmse, delta2_time, delta2_rmse;
 end
 #----------------------------------------------------------------
 
