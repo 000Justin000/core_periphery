@@ -7,18 +7,15 @@ verbose = true;
 
 cities = {'cities/Edinburgh', 'cities/Glasgow', 'cities/Cardiff', 'cities/Bristol', 'cities/Nottingham'};
 
+wsdm_datasets = ["wsdm_celegans", "wsdm_london", "wsdm_pvmiun42d1", "wsdm_openflights", "wsdm_brightkite"];
+
 NAME = 'network';
-dataset_name = %'wsdm_brightkite';
-               %'wsdm_openflights';
-               %'wsdm_pvmiun42d1';
-               %'wsdm_london';
-               %'wsdm_celegans';
-               %'london'; 
+dataset_name = 'london'; 
                %'netscience'; 
                %'Erdos971';
                %'yeast'; 
                % cities{3}; 
-datafilename = sprintf('./Datasets/%s',dataset_name);
+datafilename = sprintf('./Datasets/wsdm/%s',wsdm_datasets(4));
 load(datafilename);
 
 
