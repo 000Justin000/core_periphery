@@ -24,7 +24,7 @@ coordinates = reshape(coords_data, [2,50686]);
 lats = coordinates(1,:);
 lons = coordinates(2,:);
 
-n = 100;
+n = 1000;
 cmap = jet(n);
 cid = (ceil((C-min(C)) / (max(C)-min(C)) * (n-1)) + 1)';
 
