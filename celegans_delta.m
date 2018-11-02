@@ -1,7 +1,7 @@
 clear all;
 close all;
 
-load('celegans_delta.mat');
+load('results/celegans_delta.mat');
 [X,Y] = meshgrid(d1,d2);
 
 figure;
