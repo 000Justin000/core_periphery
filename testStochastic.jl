@@ -1317,24 +1317,60 @@ end
 function tradeoff_celegans(delta1_array, delta2_array)
     A,B,theta0,D,coordinates,epsilon,t = test_celegans(1.0; ratio=1.00, max_num_step=100, opt_epsilon=true, delta_1=0.0, delta_2=100.0);
 
-    delta1_time = [];
-    delta1_rmse = [];
+    delta1_time = Vector{Float64}();
+    delta1_rmse = Vector{Float64}();
+    delta1_corr = Vector{Float64}();
+    delta1_thta = Vector{Vector{Float64}}();
+    delta1_epsl = Vector{Float64}();
     for delta1 in delta1_array
         A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=0.00, max_num_step=100, opt_epsilon=true, delta_1=delta1);
         push!(delta1_time, t);
         push!(delta1_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
-        println((sum((theta-theta0).^2)/length(theta0))^0.5)
+        push!(delta1_corr, cor(theta,theta0));
+        push!(delta1_thta, theta);
+        push!(delta1_epsl, epsilon);
     end
 
-    delta2_time = [];
-    delta2_rmse = [];
+    delta2_time = Vector{Float64}();
+    delta2_rmse = Vector{Float64}();
+    delta2_corr = Vector{Float64}();
+    delta2_thta = Vector{Vector{Float64}}();
+    delta2_epsl = Vector{Float64}();
     for delta2 in delta2_array
         A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=0.00, max_num_step=100, opt_epsilon=true, delta_2=delta2);
         push!(delta2_time, t);
         push!(delta2_rmse, (sum((theta-theta0).^2)/length(theta0))^0.5);
+        push!(delta2_corr, cor(theta,theta0));
+        push!(delta2_thta, theta);
+        push!(delta2_epsl, epsilon);
     end
 
-    return delta1_time, delta1_rmse, delta2_time, delta2_rmse;
+    return delta1_time, delta1_rmse, delta1_corr, delta1_thta, delta1_epsl, delta2_time, delta2_rmse, delta2_corr, delta2_thta, delta2_epsl;
+end
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+function accuracy_celegans(delta1_array, delta2_array)
+    A,B,theta,D,coordinates,epsilon,t = test_celegans(1.0; ratio=1.00, max_num_step=100, opt_epsilon=true, delta_1=0.0, delta_2=100.0);
+    omg_nev, omg_fmm, doe_nev, doe_fmm, epd_nev, epd_fmm, _, _ = check(A,theta,D,coordinates,Euclidean(),Euclidean_CoM2,epsilon,1.00,with_plot=false);
+
+    delta_omg = zeros(length(delta1_array), length(delta2_array))
+    delta_doe = zeros(length(delta1_array), length(delta2_array))
+    delta_epd = zeros(length(delta1_array), length(delta2_array), length(epd_nev))
+    delta_tog = zeros(length(delta1_array), length(delta2_array))
+    delta_tgd = zeros(length(delta1_array), length(delta2_array))
+    for (i,delta1) in enumerate(delta1_array)
+        for (j,delta2) in enumerate(delta2_array)
+            _, omg_fmm, _, doe_fmm, _, epd_fmm, t_omg, t_grd = check(A,theta,D,coordinates,Euclidean(),Euclidean_CoM2,epsilon,0.00,delta_1=delta1,delta_2=delta2,with_plot=false);
+            delta_omg[i,j]   = omg_fmm
+            delta_doe[i,j]   = doe_fmm
+            delta_epd[i,j,:] = epd_fmm
+            delta_tog[i,j]   = t_omg
+            delta_tgd[i,j]   = t_grd
+        end
+    end
+
+    return delta_omg, delta_doe, delta_epd, delta_tog, delta_tgd, omg_nev, doe_nev, epd_nev
 end
 #----------------------------------------------------------------
 
@@ -1678,7 +1714,7 @@ end
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
-function check(A, theta, D, coordinates, metric, CoM2, epsilon, ratio)
+function check(A, theta, D, coordinates, metric, CoM2, epsilon, ratio; delta_1=2.0, delta_2=0.2, with_plot=true)
     coords = flipdim([coordinates[i][j] for i in 1:size(coordinates,1), j in 1:2]',1);
     bt = BallTree(coords, metric, leafsize=1);
     dist = Dict{Int64,Array{Float64,1}}(i => vec(D[:,i]) for i in 1:length(theta));
@@ -1700,33 +1736,51 @@ function check(A, theta, D, coordinates, metric, CoM2, epsilon, ratio)
     #-----------------------------------------------------------------------------
 
     omega_nev = SCP.omega(A, theta, D, epsilon);
-    omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
+
+    t1 = time_ns()
+    omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
+    for iter in 1:500
+        omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
+    end
+    t2 = time_ns()
+    t_omg = (t2-t1)/1.0e11
 
     epd_nev = vec(sum(SCP.probability_matrix(theta, D, epsilon), 1));
     srd_nev = SCP.sum_rho_logD(theta,D,epsilon);
-    epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => 2.0, "delta_2" => 0.2));
+
+    t1 = time_ns()
+    epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
+    for iter in 1:500
+        epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
+    end
+    t2 = time_ns()
+    t_grd = (t2-t1)/1.0e11
 
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);
 
-    order = sortperm(vec(sum(A,1)), rev=false);
+    if (with_plot)
+        order = sortperm(vec(sum(A,1)), rev=false);
 
-    h = Plots.plot(size=(250,240), title="",
-                             xlabel="vertex indices",
-                             ylabel="expected degrees",
-                             xlim=(1,277),
-                             ylim=(-1.0, 80.0),
-                             grid="off",
-                             framestyle=:box,
-                             legend=:topleft);
+        h = Plots.plot(size=(250,240), title="",
+                                 xlabel="vertex indices",
+                                 ylabel="expected degrees",
+                                 xlim=(1,277),
+                                 ylim=(-1.0, 80.0),
+                                 grid="off",
+                                 framestyle=:box,
+                                 legend=:topleft);
 
-    Plots.plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=3.50, color="grey",   label="original degrees");
-    Plots.plot!(h, epd_nev[order],                linestyle=:solid, linewidth=2.00, color="blue",   label="naive");
-    Plots.plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=1.00, color="orange", label="FMM");
-    Plots.plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="FMM error");
-    Plots.savefig(h, "results/expected_degrees.svg");
+        Plots.plot!(h, vec(sum(A,1))[order],          linestyle=:solid, linewidth=3.50, color="grey",   label="original degrees");
+        Plots.plot!(h, epd_nev[order],                linestyle=:solid, linewidth=2.00, color="blue",   label="naive");
+        Plots.plot!(h, epd_fmm[order],                linestyle=:solid, linewidth=1.00, color="orange", label="FMM");
+        Plots.plot!(h, epd_fmm[order]-epd_nev[order], linestyle=:solid, linewidth=1.00, color="red",    label="FMM error");
+        Plots.savefig(h, "results/expected_degrees.svg");
 
-    return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm, epd_nev, epd_fmm;
+        return h, fmm_tree, omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm, epd_nev, epd_fmm;
+    else
+        return omega_nev, omega_fmm, domega_depsilon_nev, domega_depsilon_fmm, epd_nev, epd_fmm, t_omg, t_grd;
+    end
 end
 #----------------------------------------------------------------
 
@@ -1849,60 +1903,60 @@ end
 
 #----------------------------------------------------------------
 function test_ring(n, m, beta=0.0; epsilon=1.0, ratio=1.0, thres=1.0e-6, max_num_step=1000, opt_epsilon=true)
-        #--------------------------------------------------------
-        dis(i,j) = min(max(i,j) - min(i,j), min(i,j)+n - max(i,j));
-        rd(i) = mod(i-1+n,n) + 1;
+   #--------------------------------------------------------
+   dis(i,j) = min(max(i,j) - min(i,j), min(i,j)+n - max(i,j));
+   rd(i) = mod(i-1+n,n) + 1;
 
-        A = spzeros(n,n);
-        for i in 1:n
-            for j in 1:m
-                if (rand() < beta)
-                    k = 0;
-                    while ((k = rand(1:n)) == i)
-                        # do nothing
-                    end
+   A = spzeros(n,n);
+   for i in 1:n
+       for j in 1:m
+           if (rand() < beta)
+               k = 0;
+               while ((k = rand(1:n)) == i)
+                   # do nothing
+               end
 
-                    A[i,k] = 1;
-                    A[k,i] = 1;
-                else
-                    A[i,rd(i-j)] = 1;
-                    A[rd(i-j),i] = 1;
-                end
+               A[i,k] = 1;
+               A[k,i] = 1;
+           else
+               A[i,rd(i-j)] = 1;
+               A[rd(i-j),i] = 1;
+           end
 
-                if (rand() < beta)
-                    k = 0;
-                    while ((k = rand(1:n)) == i)
-                        # do nothing
-                    end
+           if (rand() < beta)
+               k = 0;
+               while ((k = rand(1:n)) == i)
+                   # do nothing
+               end
 
-                    A[i,k] = 1;
-                    A[k,i] = 1;
-                else
-                    A[i,rd(i+j)] = 1;
-                    A[rd(i+j),i] = 1;
-                end
-            end
-        end
+               A[i,k] = 1;
+               A[k,i] = 1;
+           else
+               A[i,rd(i+j)] = 1;
+               A[rd(i+j),i] = 1;
+           end
+       end
+   end
 
-        D = zeros(n,n);
-        for i in 1:n
-            for j in 1:n
-                D[i,j] = dis(i,j);
-            end
-        end
+   D = zeros(n,n);
+   for i in 1:n
+       for j in 1:n
+           D[i,j] = dis(i,j);
+       end
+   end
 
-        opt = Dict();
-        opt["ratio"] = ratio;
-        opt["thres"] = thres;
-        opt["max_num_step"] = max_num_step;
-        opt["opt_epsilon"] = opt_epsilon;
-        opt["delta_1"] = 2.0;
-        opt["delta_2"] = 0.2;
+   opt = Dict();
+   opt["ratio"] = ratio;
+   opt["thres"] = thres;
+   opt["max_num_step"] = max_num_step;
+   opt["opt_epsilon"] = opt_epsilon;
+   opt["delta_1"] = 2.0;
+   opt["delta_2"] = 0.2;
 
-        theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
-        B = SCP.model_gen(theta, D, epsilon);
-        #--------------------------------------------------------
+   theta, epsilon = SCP.model_fit(A, D, epsilon; opt=opt);
+   B = SCP.model_gen(theta, D, epsilon);
+   #--------------------------------------------------------
 
-        return A, B, theta, epsilon
+   return A, B, theta, epsilon
 end
 #----------------------------------------------------------------

@@ -94,7 +94,8 @@ module SCP_FMM
             if ((idx_1 > bt.tree_data.n_internal_nodes) && (idx_2 > bt.tree_data.n_internal_nodes))
                 cmp[end].pot_1 += log(1 + (cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon));
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
+            elseif (distance >= max(opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
+            # elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[end].pot_1 += +(1/1) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^1
                                   -(1/2) * ((cmp[idx_1].m * cmp[idx_2].m) / (distance^epsilon))^2
@@ -226,7 +227,8 @@ module SCP_FMM
                 cmp[idx_1].pot_2 += cmp[idx_2].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 cmp[idx_2].pot_2 += cmp[idx_1].m / (cmp[idx_1].m * cmp[idx_2].m + distance^epsilon) * log(distance);
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
+            elseif (distance >= max(opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
+            # elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 cmp[idx_1].pot_1 += cmp[idx_2].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 cmp[idx_2].pot_1 += cmp[idx_1].m / ((cmp[idx_1].m * cmp[idx_2].m) / (subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
@@ -476,7 +478,8 @@ module SCP_FMM
                 end
 
                 cmp[end].m += 1;
-            elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
+            # elseif (distance >= max(epsilon*2, opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
+            elseif (distance >= max(opt["delta_1"])*(sp1r + sp2r) && ((cmp[idx_1].maxm * cmp[idx_2].maxm)/(distance^epsilon) < opt["delta_2"]))
             # elseif ((sp1r + sp2r) < 1.0e-12)
                 nef = (cmp[idx_1].m * cmp[idx_2].m) / ((cmp[idx_1].m * cmp[idx_2].m)/(subtree_size(idx_1,n_node)*subtree_size(idx_2,n_node)) + distance^epsilon);
                 nei = Int64(floor(nef) + (rand() < (nef - floor(nef)) ? 1 : 0));
