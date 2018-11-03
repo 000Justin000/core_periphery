@@ -1,6 +1,6 @@
-clear all
+%clear all
 close all
-clc
+%clc
 addpath('functions');
 
 verbose = true; 
