@@ -1367,6 +1367,8 @@ function accuracy_celegans(delta1_array, delta2_array)
             delta_epd[i,j,:] = epd_fmm
             delta_tog[i,j]   = t_omg
             delta_tgd[i,j]   = t_grd
+
+            println("(", i, ",", j, ") --- ", t_omg+t_grd)
         end
     end
 
@@ -1737,24 +1739,26 @@ function check(A, theta, D, coordinates, metric, CoM2, epsilon, ratio; delta_1=2
 
     omega_nev = SCP.omega(A, theta, D, epsilon);
 
+    repeat = 1000
+
     t1 = time_ns()
     omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
-    for iter in 1:500
+    for iter in 1:repeat
         omega_fmm = SCP_FMM.omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
     end
     t2 = time_ns()
-    t_omg = (t2-t1)/1.0e11
+    t_omg = (t2-t1)/1.0e9/repeat
 
     epd_nev = vec(sum(SCP.probability_matrix(theta, D, epsilon), 1));
     srd_nev = SCP.sum_rho_logD(theta,D,epsilon);
 
     t1 = time_ns()
     epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
-    for iter in 1:500
+    for iter in 1:repeat
         epd_fmm, srd_fmm, fmm_tree = SCP_FMM.epd_and_srd!(theta, coords, CoM2, dist, epsilon, bt, Dict("ratio" => ratio, "delta_1" => delta_1, "delta_2" => delta_2));
     end
     t2 = time_ns()
-    t_grd = (t2-t1)/1.0e11
+    t_grd = (t2-t1)/1.0e9/repeat
 
     domega_depsilon_nev = (srd_nev-sum_logD_inE);
     domega_depsilon_fmm = (srd_fmm-sum_logD_inE);

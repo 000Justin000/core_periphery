@@ -29,7 +29,7 @@ shading interp;
 view(-125,45);
 
 figure;
-surf(X,Y,tog');
+surf(X,Y,tog'/5);
 xlabel('delta 1');
 ylabel('delta 2');
 zlabel('objective time');
@@ -37,7 +37,7 @@ shading interp;
 view(-125,45);
 
 figure;
-surf(X,Y,tgd');
+surf(X,Y,tgd'/5);
 xlabel('delta 1');
 ylabel('delta 2');
 zlabel('gradient time');

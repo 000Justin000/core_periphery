@@ -1,6 +1,6 @@
-clear all
+%clear all
 close all
-clc
+%clc
 addpath('functions');
 
 verbose = true; 
@@ -15,7 +15,7 @@ dataset_name = 'london';
                %'Erdos971';
                %'yeast'; 
                % cities{3}; 
-datafilename = sprintf('./Datasets/wsdm/%s',wsdm_datasets(4));
+datafilename = sprintf('./Datasets/wsdm/%s',wsdm_datasets(5));
 load(datafilename);
 
 
