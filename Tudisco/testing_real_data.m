@@ -15,7 +15,7 @@ dataset_name = 'london';
                %'Erdos971';
                %'yeast'; 
                % cities{3}; 
-datafilename = sprintf('./Datasets/wsdm/%s',wsdm_datasets(4));
+datafilename = sprintf('./Datasets/wsdm/%s',wsdm_datasets(2));
 load(datafilename);
 
 
@@ -40,10 +40,16 @@ alpha = 60; pnorm = 2*alpha;
 [x, x_array, er_array] = maximize_falpha(A,alpha,pnorm, 'verbose', verbose);
 if verbose, fprintf('\n'); end
 x = linearize(x,0,1);
-      
+
+ll = zeros(31,101);
+for i = 0:30
+    for j = 0:100
+        ll(i+1,j+1) = log_likelihood(A,x,i*0.1,j*0.1);
+    end
+end
+
 [~,ind] = sort(x,'descend');
 figure, spy(A(ind,ind)); title('NSM'); setplotstuff();
-
 
 
 %% DEGREE CP %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      
@@ -52,6 +58,15 @@ d = linearize(d,0,1);
 
 [~,ind] = sort(d,'descend');
 figure, spy(A(ind,ind)); title('Degree'); setplotstuff();
+
+
+function ll = log_likelihood(A,x,t,s)
+    [~,rk]=ismember(x,sort(x,'descend'));
+    irk = size(A,1)-rk;
+    P = sigmoid(max(irk*ones(1,length(irk)), ones(length(irk),1)*irk')/length(irk), t, s);
+    
+    ll = sum(sum(triu(log(P),1) .* triu(A,1))) + sum(sum(triu(log(1-P),1) .* triu(1-A,1)));
+end
 
 function [ind] = max_connected_component(G)
     bins = conncomp(G);
