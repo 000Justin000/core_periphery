@@ -450,8 +450,8 @@ module SCP_FMM
         theta = optim.minimizer[1:end-1];
         epsilon = optim.minimizer[end];
 
-        println(epsilon);
-        println(omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt));
+        # println(epsilon);
+        # println(omega!(theta, coords, CoM2, dist, epsilon, bt, A, sum_logD_inE, opt));
 
         @assert epsilon > 0;
         return theta, epsilon, optim;
